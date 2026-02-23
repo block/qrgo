@@ -1,0 +1,40 @@
+name: Swift CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spm:
+    strategy:
+      matrix:
+        os: ["macos-15"]
+        compilation_mode: ["debug", "release"]
+        xcode_version: ["16.3"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mount SPM cache
+        uses: actions/cache@v3
+        with:
+            path: .build
+            key: ${{ matrix.os }}-${{ matrix.compilation_mode }}-${{ matrix.xcode_version }}-spm-${{ hashFiles('**/Package.resolved') }}
+            restore-keys: |
+                ${{ matrix.os }}-${{ matrix.compilation_mode }}-${{ matrix.xcode_version }}-spm-
+      - name: Select XCode
+        run: |
+            echo "Available Xcode versions: $(ls /Applications | grep Xcode)"
+            echo "Xcode is currently: $(sudo xcode-select -p)"
+            sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode_version }}.app
+            echo "Xcode is now: $(sudo xcode-select -p)"
+      - name: "Build (SPM for ${{ matrix.os }}, ${{ matrix.compilation_mode }}) with Xcode ${{ matrix.xcode_version }}"
+        run: |
+            swift build -c ${{ matrix.compilation_mode }}
