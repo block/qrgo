@@ -12,6 +12,79 @@ enum Colors {
     static let reset = "\u{001B}[0m"
 }
 
+private struct ShellResult {
+    let exitCode: Int32
+    let stdout: String
+    let stderr: String
+
+    var succeeded: Bool { exitCode == 0 }
+
+    var trimmedOutput: String {
+        stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+@discardableResult
+private func runCommand(
+    _ executable: String,
+    arguments: [String] = [],
+    mergeStderr: Bool = false,
+    suppressStderr: Bool = false,
+    input: String? = nil
+) -> ShellResult {
+    let task = Process()
+    let stdoutPipe = Pipe()
+
+    task.launchPath = executable
+    task.arguments = arguments
+    task.standardOutput = stdoutPipe
+
+    var stderrPipe: Pipe? = nil
+    if mergeStderr {
+        task.standardError = stdoutPipe
+    } else if suppressStderr {
+        task.standardError = FileHandle.nullDevice
+    } else {
+        let pipe = Pipe()
+        task.standardError = pipe
+        stderrPipe = pipe
+    }
+
+    var inputPipe: Pipe? = nil
+    if input != nil {
+        let pipe = Pipe()
+        task.standardInput = pipe
+        inputPipe = pipe
+    }
+
+    do {
+        try task.run()
+
+        if let inputData = input?.data(using: .utf8) {
+            inputPipe?.fileHandleForWriting.write(inputData)
+            inputPipe?.fileHandleForWriting.closeFile()
+        }
+
+        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderrData = stderrPipe?.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+
+        return ShellResult(
+            exitCode: task.terminationStatus,
+            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
+            stderr: stderrData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        )
+    } catch {
+        return ShellResult(exitCode: -1, stdout: "", stderr: error.localizedDescription)
+    }
+}
+
+/// Runs a command string via the user's login shell (inherits full PATH).
+private func runLoginShell(_ command: String) -> ShellResult {
+    let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/sh"
+    return runCommand(shell, arguments: ["-l", "-c", command], suppressStderr: true)
+}
+
 @available(macOS 12.3, *)
 class ScreenCapturePermissionHelper {
     static func checkScreenCapturePermission() async -> Bool {
@@ -24,45 +97,29 @@ class ScreenCapturePermissionHelper {
     }
     
     static func requestScreenCapturePermission() {
-        let task = Process()
-        task.launchPath = "/usr/bin/open"
-        task.arguments = ["x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"]
-        
-        do {
-            try task.run()
-            task.waitUntilExit()
+        let result = runCommand("/usr/bin/open", arguments: ["x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"])
+        if result.succeeded {
             print("Please enable Screen Recording permission in System Settings and restart the application.")
-        } catch {
-            print("Error opening System Settings: \(error)")
+        } else {
+            print("Error opening System Settings: \(result.stderr)")
         }
     }
 }
 
 class SimulatorHelper {
     static func getBootedSimulator() -> String? {
-        let task = Process()
-        let pipe = Pipe()
-        
-        task.launchPath = "/usr/bin/xcrun"
-        task.arguments = ["simctl", "list", "devices", "booted", "-j"]
-        task.standardOutput = pipe
-        
-        do {
-            try task.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            task.waitUntilExit()
-            
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let devices = json["devices"] as? [String: [[String: Any]]] {
-                for deviceList in devices.values {
-                    if let device = deviceList.first(where: { ($0["state"] as? String) == "Booted" }),
-                       let udid = device["udid"] as? String {
-                        return udid
-                    }
-                }
+        let result = runCommand("/usr/bin/xcrun", arguments: ["simctl", "list", "devices", "booted", "-j"])
+        guard result.succeeded,
+              let data = result.stdout.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let devices = json["devices"] as? [String: [[String: Any]]] else {
+            return nil
+        }
+        for deviceList in devices.values {
+            if let device = deviceList.first(where: { ($0["state"] as? String) == "Booted" }),
+               let udid = device["udid"] as? String {
+                return udid
             }
-        } catch {
-            print("Error getting simulator: \(error)")
         }
         return nil
     }
@@ -80,34 +137,16 @@ class SimulatorHelper {
             simulatorUDID = bootedUDID
         }
 
-        let task = Process()
-        let pipe = Pipe()
-        task.launchPath = "/usr/bin/xcrun"
-        task.arguments = ["simctl", "openurl", simulatorUDID, urlString]
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            if task.terminationStatus == 0 {
-                print("")  // blank line before success
-                print("Opened URL on \(Colors.green)iOS Simulator\(Colors.reset)")
-                return true
-            } else {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                print("")  // blank line before error
-                print("\(Colors.red)Error:\(Colors.reset) Failed to open URL in iOS Simulator")
-                if !output.isEmpty {
-                    print(output.trimmingCharacters(in: .whitespacesAndNewlines))
-                }
-                return false
+        let result = runCommand("/usr/bin/xcrun", arguments: ["simctl", "openurl", simulatorUDID, urlString], mergeStderr: true)
+        print("")
+        if result.succeeded {
+            print("Opened URL on \(Colors.green)iOS Simulator\(Colors.reset)")
+            return true
+        } else {
+            print("\(Colors.red)Error:\(Colors.reset) Failed to open URL in iOS Simulator")
+            if !result.trimmedOutput.isEmpty {
+                print(result.trimmedOutput)
             }
-        } catch {
-            print("")
-            print("\(Colors.red)Error:\(Colors.reset) \(error)")
             return false
         }
     }
@@ -123,27 +162,9 @@ class AndroidEmulatorHelper {
             return _cachedAdbPath
         }
 
-        // Find adb using the user's login shell to get their full PATH
-        let task = Process()
-        let pipe = Pipe()
-
-        task.launchPath = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/sh"
-        task.arguments = ["-l", "-c", "which adb"]
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
-
-        do {
-            try task.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            task.waitUntilExit()
-
-            if task.terminationStatus == 0,
-               let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !output.isEmpty {
-                _cachedAdbPath = output
-            }
-        } catch {
-            // Return nil if shell fails
+        let result = runLoginShell("which adb")
+        if result.succeeded, !result.trimmedOutput.isEmpty {
+            _cachedAdbPath = result.trimmedOutput
         }
 
         _adbPathChecked = true
@@ -156,34 +177,14 @@ class AndroidEmulatorHelper {
             return []
         }
 
-        let task = Process()
-        let pipe = Pipe()
+        let result = runCommand(adbPath, arguments: ["devices"])
+        guard result.succeeded else { return [] }
 
-        task.launchPath = adbPath
-        task.arguments = ["devices"]
-        task.standardOutput = pipe
-
-        var devices: [String] = []
-
-        do {
-            try task.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            task.waitUntilExit()
-
-            if let output = String(data: data, encoding: .utf8) {
-                // Parse adb devices output - get ALL connected devices, not just emulators
-                let lines = output.components(separatedBy: .newlines)
-                for line in lines {
-                    let components = line.components(separatedBy: .whitespaces)
-                    if components.count >= 2 && components[1] == "device" {
-                        devices.append(components[0])
-                    }
-                }
-            }
-        } catch {
-            print("Error getting Android devices: \(error)")
+        // Parse adb devices output - get ALL connected devices, not just emulators
+        return result.stdout.components(separatedBy: .newlines).compactMap { line in
+            let components = line.components(separatedBy: .whitespaces)
+            return (components.count >= 2 && components[1] == "device") ? components[0] : nil
         }
-        return devices
     }
 
     // Legacy method for backward compatibility
@@ -245,7 +246,6 @@ class AndroidEmulatorHelper {
         return displayName
     }
 
-    // Fetch multiple device properties in a single adb shell call
     private static func getDeviceProperties(deviceId: String, adbPath: String) -> [String: String] {
         let properties = [
             "ro.product.model",
@@ -255,35 +255,16 @@ class AndroidEmulatorHelper {
             "ro.boot.qemu.avd_name"
         ]
 
-        let task = Process()
-        let pipe = Pipe()
-
-        // Build a shell command that outputs all properties with a delimiter
         let shellCommand = properties.map { "getprop \($0)" }.joined(separator: " && echo '|||' && ")
-        task.launchPath = adbPath
-        task.arguments = ["-s", deviceId, "shell", shellCommand]
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
+        let result = runCommand(adbPath, arguments: ["-s", deviceId, "shell", shellCommand], suppressStderr: true)
+        guard result.succeeded else { return [:] }
 
-        var result: [String: String] = [:]
-
-        do {
-            try task.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            task.waitUntilExit()
-
-            if task.terminationStatus == 0,
-               let output = String(data: data, encoding: .utf8) {
-                let values = output.components(separatedBy: "|||").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                for (index, prop) in properties.enumerated() where index < values.count {
-                    result[prop] = values[index]
-                }
-            }
-        } catch {
-            // Return empty dict on error
+        var props: [String: String] = [:]
+        let values = result.stdout.components(separatedBy: "|||").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        for (index, prop) in properties.enumerated() where index < values.count {
+            props[prop] = values[index]
         }
-
-        return result
+        return props
     }
 
     @discardableResult
@@ -312,41 +293,29 @@ class AndroidEmulatorHelper {
             }
         }
 
-        let task = Process()
-        let pipe = Pipe()
-        task.launchPath = adbPath
-        task.arguments = ["-s", targetDevice, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-c", "android.intent.category.BROWSABLE", "-d", urlString]
-        task.standardOutput = pipe
-        task.standardError = pipe
+        let result = runCommand(
+            adbPath,
+            arguments: ["-s", targetDevice, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-c", "android.intent.category.BROWSABLE", "-d", urlString],
+            mergeStderr: true
+        )
+        let deviceName = getDeviceFriendlyName(targetDevice)
 
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            let deviceName = getDeviceFriendlyName(targetDevice)
-
-            // Check both exit status and output for errors
-            if task.terminationStatus != 0 || output.contains("Error:") {
-                print("")  // blank line before error
-                if output.contains("unable to resolve Intent") {
-                    print("\(Colors.red)Error:\(Colors.reset) No app on \(Colors.yellow)\(deviceName)\(Colors.reset) can handle this URL.")
-                } else {
-                    print("\(Colors.red)Error:\(Colors.reset) Failed to open URL on \(Colors.yellow)\(deviceName)\(Colors.reset)")
-                    if !output.isEmpty {
-                        print(output.trimmingCharacters(in: .whitespacesAndNewlines))
-                    }
-                }
-                return false
+        // Check both exit status and output for errors
+        if !result.succeeded || result.stdout.contains("Error:") {
+            print("")
+            if result.stdout.contains("unable to resolve Intent") {
+                print("\(Colors.red)Error:\(Colors.reset) No app on \(Colors.yellow)\(deviceName)\(Colors.reset) can handle this URL.")
             } else {
-                print("")  // blank line before success
-                print("Opened URL on \(Colors.green)\(deviceName)\(Colors.reset)")
-                return true
+                print("\(Colors.red)Error:\(Colors.reset) Failed to open URL on \(Colors.yellow)\(deviceName)\(Colors.reset)")
+                if !result.trimmedOutput.isEmpty {
+                    print(result.trimmedOutput)
+                }
             }
-        } catch {
-            print("Error opening URL in Android device: \(error)")
             return false
+        } else {
+            print("")
+            print("Opened URL on \(Colors.green)\(deviceName)\(Colors.reset)")
+            return true
         }
     }
 }
@@ -356,15 +325,8 @@ class ScreenCaptureHelper {
         let tempDir = FileManager.default.temporaryDirectory
         let timestamp = Int(Date().timeIntervalSince1970)
         let imagePath = tempDir.appendingPathComponent("qr_capture_\(timestamp).png").path
-        
-        let task = Process()
-        task.launchPath = "/usr/sbin/screencapture"
-        task.arguments = ["-i", imagePath] // -i for interactive
-        
-        task.launch()
-        task.waitUntilExit()
-        
-        // Check if file exists
+
+        runCommand("/usr/sbin/screencapture", arguments: ["-i", imagePath])
         return FileManager.default.fileExists(atPath: imagePath) ? imagePath : nil
     }
 }
@@ -383,13 +345,7 @@ class QRCodeDecoder {
             try requestHandler.perform([request])
             guard let results = request.results else { return [] }
             
-            return results.compactMap { result in
-                guard let barcode = result as? VNBarcodeObservation,
-                      let payload = barcode.payloadStringValue else {
-                    return nil
-                }
-                return payload
-            }
+            return results.compactMap { $0.payloadStringValue }
         } catch {
             print("Failed to detect QR codes: \(error)")
             return []
@@ -431,19 +387,11 @@ func transformUrl(_ urlString: String) -> String {
 }
 
 func copyUrlToClipboard(_ text: String) {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/pbcopy")
-    let pipe = Pipe()
-    process.standardInput = pipe
-
-    do {
-        try process.run()
-        pipe.fileHandleForWriting.write(text.data(using: .utf8)!)
-        pipe.fileHandleForWriting.closeFile()
-        process.waitUntilExit()
+    let result = runCommand("/usr/bin/pbcopy", input: text)
+    if result.succeeded {
         print("📋 Copied to clipboard: \(text)")
-    } catch {
-        print("Failed to copy to clipboard: \(error)")
+    } else {
+        print("Failed to copy to clipboard: \(result.stderr)")
     }
 }
 
@@ -496,31 +444,19 @@ func detectDeviceType(_ deviceId: String) -> DeviceType {
 }
 
 func validateiOSDevice(_ udid: String) -> Bool {
-    let task = Process()
-    let pipe = Pipe()
-
-    task.launchPath = "/usr/bin/xcrun"
-    task.arguments = ["simctl", "list", "devices", "booted", "-j"]
-    task.standardOutput = pipe
-    task.standardError = FileHandle.nullDevice
-
-    do {
-        try task.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        task.waitUntilExit()
-
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let devices = json["devices"] as? [String: [[String: Any]]] {
-            for deviceList in devices.values {
-                if deviceList.contains(where: {
-                    ($0["udid"] as? String) == udid && ($0["state"] as? String) == "Booted"
-                }) {
-                    return true
-                }
-            }
+    let result = runCommand("/usr/bin/xcrun", arguments: ["simctl", "list", "devices", "booted", "-j"], suppressStderr: true)
+    guard result.succeeded,
+          let data = result.stdout.data(using: .utf8),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let devices = json["devices"] as? [String: [[String: Any]]] else {
+        return false
+    }
+    for deviceList in devices.values {
+        if deviceList.contains(where: {
+            ($0["udid"] as? String) == udid && ($0["state"] as? String) == "Booted"
+        }) {
+            return true
         }
-    } catch {
-        // Validation failed
     }
     return false
 }
@@ -670,16 +606,11 @@ func openUrlInAvailableEmulator(_ urlString: String) {
         AndroidEmulatorHelper.openUrl(urlString, deviceId: deviceId)
     } else if selectedAction == "local" {
         print("💻 Opening on this computer...")
-        let task = Process()
-        task.launchPath = "/usr/bin/open"
-        task.arguments = [urlString]
-
-        do {
-            try task.run()
-            task.waitUntilExit()
+        let result = runCommand("/usr/bin/open", arguments: [urlString])
+        if result.succeeded {
             print("Opened URL: \(urlString)")
-        } catch {
-            print("Error opening URL: \(error)")
+        } else {
+            print("Error opening URL: \(result.stderr)")
         }
     } else if selectedAction == "skip" {
         print("⏭️  Skipped")
@@ -708,31 +639,11 @@ struct QRGoMain {
     }
 
     static func printVersion() {
-        let task = Process()
-        let pipe = Pipe()
-        let errPipe = Pipe()
-
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/sh"
-        task.launchPath = shell
-        task.arguments = ["-l", "-c", "brew info --json=v2 block/tap/qrgo | jq -r '.formulae[0].installed[0].version'"]
-        task.standardOutput = pipe
-        task.standardError = errPipe
-
-        do {
-            try task.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            task.waitUntilExit()
-
-            if task.terminationStatus == 0,
-               let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !version.isEmpty, version != "null" {
-                print("\(Colors.green)qrgo v\(version)\(Colors.reset)")
-            } else {
-                print("\(Colors.red)Error:\(Colors.reset) Could not determine installed version. Is qrgo installed via Homebrew?")
-                exit(1)
-            }
-        } catch {
-            print("\(Colors.red)Error:\(Colors.reset) \(error)")
+        let result = runLoginShell("brew info --json=v2 block/tap/qrgo | jq -r '.formulae[0].installed[0].version'")
+        if result.succeeded, !result.trimmedOutput.isEmpty, result.trimmedOutput != "null" {
+            print("qrgo \(result.trimmedOutput)")
+        } else {
+            print("\(Colors.red)Error:\(Colors.reset) Could not determine installed version. Is qrgo installed via Homebrew?")
             exit(1)
         }
         exit(0)
