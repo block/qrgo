@@ -11,8 +11,16 @@ No tests are configured in this project.
 
 ## Architecture
 
-- **Sources/qrgo/main.swift** - Single-file CLI tool for QR code scanning (~800 lines)
-- macOS-only: uses ScreenCaptureKit, Vision, CoreImage, AppKit (no external dependencies)
+- **Sources/qrgo/QRGo.swift** - CLI entry point (`@main` struct) and device/URL handling logic
+- **Sources/qrgo/Helpers/**
+  - **Shell.swift** - `Shell` enum with `runCommand`/`runLoginShell` static methods, `ShellResult` struct
+  - **Colors.swift** - `Colors` enum (ANSI codes) and `printError`/`printSuccess`/`printWarning`/`printInfo` helpers
+  - **ScreenCaptureHelper.swift** - Screen region capture via `screencapture`
+  - **ScreenCapturePermissionHelper.swift** - Screen recording permission check/request
+  - **QRCodeDecoder.swift** - QR/barcode detection from image files via Vision
+  - **SimulatorHelper.swift** - iOS Simulator device detection and URL opening
+  - **AndroidEmulatorHelper.swift** - Android device/emulator detection and URL opening via ADB
+- macOS-only: uses `ScreenCaptureKit`, `Vision`, `CoreImage`, `AppKit` (no external dependencies)
 - Requires macOS 12.3+ for `SCShareableContent` screen capture API
 - Supports iOS Simulator (`xcrun simctl`) and Android devices (`adb`)
 
@@ -20,10 +28,10 @@ No tests are configured in this project.
 
 - Swift 5.5+ with async/await; target `.macOS(.v12)` per Package.swift
 - `@main` struct pattern with async `main()` entry point
-- Helper classes: `ScreenCapturePermissionHelper`, `SimulatorHelper`, `AndroidEmulatorHelper`, `QRCodeDecoder`, `ScreenCaptureHelper`
-- `Colors` enum for ANSI terminal output (red, green, yellow, reset)
+- Shell commands via `Shell.runCommand()` / `Shell.runLoginShell()` static methods
+- `Colors` enum for ANSI terminal output; free `printError`/`printSuccess`/`printWarning`/`printInfo` functions
 - Error handling: print colored messages via `Colors`, exit with non-zero status codes
-- Use `Process` class for shell commands; cache expensive lookups (e.g., `findAdbPath()`)
+- Cache expensive lookups (e.g., `AndroidEmulatorHelper.findAdbPath()`)
 
 ## Agent Knowledge Directory
 
