@@ -14,10 +14,7 @@ https://github.com/user-attachments/assets/3fe7a7d3-17a0-4831-a8d7-17e59d591271
 You can install the QR scanner using Homebrew:
 
 ```bash 
-# Install Block's tap if absent:
-# brew tap block/homebrew-tap git@github.com:block/homebrew-tap.git
-
-brew install qrgo
+brew install block/tap/qrgo
 ```
 
 ## Usage
