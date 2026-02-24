@@ -701,8 +701,40 @@ struct QRGoMain {
           -t, --transform-urls   Transform specific URLs to use custom URL schemes
                                  (e.g., cash.app URLs to cashme:// scheme)
           -c, --copy             Copy the parsed URL to clipboard
+          -v, --version          Show the installed version
           -h, --help             Show this help message
         """)
+        exit(0)
+    }
+
+    static func printVersion() {
+        let task = Process()
+        let pipe = Pipe()
+        let errPipe = Pipe()
+
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/sh"
+        task.launchPath = shell
+        task.arguments = ["-l", "-c", "brew info --json=v2 block/tap/qrgo | jq -r '.formulae[0].installed[0].version'"]
+        task.standardOutput = pipe
+        task.standardError = errPipe
+
+        do {
+            try task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+
+            if task.terminationStatus == 0,
+               let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !version.isEmpty, version != "null" {
+                print("\(Colors.green)qrgo v\(version)\(Colors.reset)")
+            } else {
+                print("\(Colors.red)Error:\(Colors.reset) Could not determine installed version. Is qrgo installed via Homebrew?")
+                exit(1)
+            }
+        } catch {
+            print("\(Colors.red)Error:\(Colors.reset) \(error)")
+            exit(1)
+        }
         exit(0)
     }
     
@@ -710,6 +742,9 @@ struct QRGoMain {
         // Parse command line arguments
         if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-h") {
             printHelp()
+        }
+        if CommandLine.arguments.contains("--version") || CommandLine.arguments.contains("-v") {
+            printVersion()
         }
         
         let shouldTransformUrls = CommandLine.arguments.contains("--transform-urls") ||
