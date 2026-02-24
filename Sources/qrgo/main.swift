@@ -9,7 +9,24 @@ enum Colors {
     static let red = "\u{001B}[31m"
     static let green = "\u{001B}[32m"
     static let yellow = "\u{001B}[33m"
+    static let blue = "\u{001B}[34m"
     static let reset = "\u{001B}[0m"
+}
+
+private func printError(_ message: String) {
+    print("\(Colors.red)\(message)\(Colors.reset)")
+}
+
+private func printSuccess(_ message: String) {
+    print("\(Colors.green)\(message)\(Colors.reset)")
+}
+
+private func printWarning(_ message: String) {
+    print("\(Colors.yellow)\(message)\(Colors.reset)")
+}
+
+private func printInfo(_ message: String) {
+    print("\(Colors.blue)\(message)\(Colors.reset)")
 }
 
 private struct ShellResult {
@@ -99,9 +116,9 @@ class ScreenCapturePermissionHelper {
     static func requestScreenCapturePermission() {
         let result = runCommand("/usr/bin/open", arguments: ["x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"])
         if result.succeeded {
-            print("Please enable Screen Recording permission in System Settings and restart the application.")
+            printInfo("Please enable Screen Recording permission in System Settings and restart the application.")
         } else {
-            print("Error opening System Settings: \(result.stderr)")
+            printError("Error opening System Settings: \(result.stderr)")
         }
     }
 }
@@ -131,21 +148,20 @@ class SimulatorHelper {
             simulatorUDID = providedUDID
         } else {
             guard let bootedUDID = getBootedSimulator() else {
-                print("No booted iOS Simulator found")
+                printError("No booted iOS Simulator found")
                 return false
             }
             simulatorUDID = bootedUDID
         }
 
         let result = runCommand("/usr/bin/xcrun", arguments: ["simctl", "openurl", simulatorUDID, urlString], mergeStderr: true)
-        print("")
         if result.succeeded {
-            print("Opened URL on \(Colors.green)iOS Simulator\(Colors.reset)")
+            printSuccess("Opened URL on iOS Simulator")
             return true
         } else {
-            print("\(Colors.red)Error:\(Colors.reset) Failed to open URL in iOS Simulator")
+            printError("Failed to open URL in iOS Simulator")
             if !result.trimmedOutput.isEmpty {
-                print(result.trimmedOutput)
+                printError(result.trimmedOutput)
             }
             return false
         }
@@ -173,7 +189,7 @@ class AndroidEmulatorHelper {
     
     static func getRunningDevices() -> [String] {
         guard let adbPath = findAdbPath() else {
-            print("adb not found. Please install Android SDK or ensure adb is in your PATH.")
+            printError("ADB not found. Please install Android SDK or ensure ADB is in your PATH.")
             return []
         }
 
@@ -270,7 +286,7 @@ class AndroidEmulatorHelper {
     @discardableResult
     static func openUrl(_ urlString: String, deviceId: String? = nil, validated: Bool = false) -> Bool {
         guard let adbPath = findAdbPath() else {
-            print("adb not found. Please install Android SDK or ensure adb is in your PATH.")
+            printError("ADB not found. Please install Android SDK or ensure ADB is in your PATH.")
             return false
         }
 
@@ -281,7 +297,7 @@ class AndroidEmulatorHelper {
         } else {
             let devices = getRunningDevices()
             guard !devices.isEmpty else {
-                print("No running Android devices found")
+                printError("No running Android devices found")
                 return false
             }
 
@@ -302,19 +318,17 @@ class AndroidEmulatorHelper {
 
         // Check both exit status and output for errors
         if !result.succeeded || result.stdout.contains("Error:") {
-            print("")
             if result.stdout.contains("unable to resolve Intent") {
-                print("\(Colors.red)Error:\(Colors.reset) No app on \(Colors.yellow)\(deviceName)\(Colors.reset) can handle this URL.")
+                printError("\nNo app on \(deviceName) can handle this URL.")
             } else {
-                print("\(Colors.red)Error:\(Colors.reset) Failed to open URL on \(Colors.yellow)\(deviceName)\(Colors.reset)")
+                printError("\nFailed to open URL on \(deviceName)")
                 if !result.trimmedOutput.isEmpty {
-                    print(result.trimmedOutput)
+                    printError(result.trimmedOutput)
                 }
             }
             return false
         } else {
-            print("")
-            print("Opened URL on \(Colors.green)\(deviceName)\(Colors.reset)")
+            printSuccess("\nOpened URL on \(deviceName)")
             return true
         }
     }
@@ -347,7 +361,7 @@ class QRCodeDecoder {
             
             return results.compactMap { $0.payloadStringValue }
         } catch {
-            print("Failed to detect QR codes: \(error)")
+            printError("Failed to detect QR codes: \(error)")
             return []
         }
     }
@@ -389,9 +403,9 @@ func transformUrl(_ urlString: String) -> String {
 func copyUrlToClipboard(_ text: String) {
     let result = runCommand("/usr/bin/pbcopy", input: text)
     if result.succeeded {
-        print("📋 Copied to clipboard: \(text)")
+        printSuccess("📋 Copied to clipboard: \(text)")
     } else {
-        print("Failed to copy to clipboard: \(result.stderr)")
+        printError("Failed to copy to clipboard: \(result.stderr)")
     }
 }
 
@@ -402,7 +416,7 @@ func parseDeviceArgument() -> String? {
             let nextArg = args[index + 1]
             // Ensure the next argument is not another flag
             if nextArg.hasPrefix("-") {
-                print("Error: -d/--device requires a device ID, not '\(nextArg)'")
+                printError("-d/--device requires a device ID, not '\(nextArg)'")
                 exit(1)
             }
             return nextArg
@@ -478,18 +492,18 @@ func validateDevice(_ deviceId: String, type: DeviceType) -> Bool {
 }
 
 func printDeviceNotFoundError(_ deviceId: String) {
-    print("\(Colors.red)Error:\(Colors.reset) Device '\(Colors.yellow)\(deviceId)\(Colors.reset)' not found or not running.")
+    printError("Device '\(deviceId)' not found or not running.")
     let androidDevices = AndroidEmulatorHelper.getRunningDevices()
     if !androidDevices.isEmpty {
-        print("\nAvailable Android devices:")
+        printInfo("\nAvailable Android devices:")
         for device in androidDevices {
             let name = AndroidEmulatorHelper.getDeviceFriendlyName(device)
-            print("  \(device) - \(name)")
+            printInfo("\t\(device) - \(name)")
         }
     }
     if let iosUDID = SimulatorHelper.getBootedSimulator() {
-        print("\nAvailable iOS Simulator:")
-        print("  \(iosUDID)")
+        printInfo("\nAvailable iOS Simulator:")
+        printInfo("\t\(iosUDID)")
     }
 }
 
@@ -552,10 +566,10 @@ func openUrlInAvailableEmulator(_ urlString: String) {
 
     // Add local computer option
     availableOptions.append(("💻 Open on this computer", "local"))
-    availableOptions.append(("⏭️  Skip (don't open)", "skip"))
+    availableOptions.append(("⏭️ Skip (don't open)", "skip"))
 
     if availableOptions.isEmpty {
-        print("No devices available")
+        printError("No devices available.")
         return
     }
 
@@ -563,24 +577,24 @@ func openUrlInAvailableEmulator(_ urlString: String) {
 
     // Check if we should use the last device and it's still available
     if shouldUseLastDevice, let lastChoice = lastDeviceChoice,
-       let lastIndex = availableOptions.firstIndex(where: { $0.1 == lastChoice }) {
+       let lastIndex: Array<(String, String)>.Index = availableOptions.firstIndex(where: { $0.1 == lastChoice }) {
         selectedAction = lastChoice
-        print("🔄 Using previous device: \(availableOptions[lastIndex].0)")
+        printInfo("🔄 Using previous device: \(availableOptions[lastIndex].0)")
     } else {
-        print("\n📱 Choose target device:")
+        printInfo("\n📱 Choose target device:")
         for (index, option) in availableOptions.enumerated() {
-            print("   \(index + 1)) \(option.0)")
+            printInfo("\t\(index + 1)) \(option.0)")
         }
 
         // Show quick repeat hint if we have a previous choice
         if let lastChoice = lastDeviceChoice,
            let lastIndex = availableOptions.firstIndex(where: { $0.1 == lastChoice }) {
-            print("\n💡 Press 'r' to use previous device (\(availableOptions[lastIndex].0))")
+            printInfo("\n💡 Press 'r' to use previous device (\(availableOptions[lastIndex].0))")
         }
         print("")
 
         guard let input = readLine() else {
-            print("Invalid input. Not opening URL.")
+            printError("Invalid input. Not opening URL.")
             return
         }
 
@@ -593,7 +607,7 @@ func openUrlInAvailableEmulator(_ urlString: String) {
             selectedAction = availableOptions[choice - 1].1
             lastDeviceChoice = selectedAction  // Remember this choice
         } else {
-            print("Invalid choice. Not opening URL.")
+            printError("Invalid choice. Not opening URL.")
             return
         }
     }
@@ -608,12 +622,12 @@ func openUrlInAvailableEmulator(_ urlString: String) {
         print("💻 Opening on this computer...")
         let result = runCommand("/usr/bin/open", arguments: [urlString])
         if result.succeeded {
-            print("Opened URL: \(urlString)")
+            printSuccess("Opened URL: \(urlString)")
         } else {
-            print("Error opening URL: \(result.stderr)")
+            printError("Error opening URL: \(result.stderr)")
         }
     } else if selectedAction == "skip" {
-        print("⏭️  Skipped")
+        printInfo("⏭️  Skipped")
     }
 }
 
@@ -641,9 +655,9 @@ struct QRGoMain {
     static func printVersion() {
         let result = runLoginShell("brew info --json=v2 block/tap/qrgo | jq -r '.formulae[0].installed[0].version'")
         if result.succeeded, !result.trimmedOutput.isEmpty, result.trimmedOutput != "null" {
-            print("qrgo \(result.trimmedOutput)")
+            printSuccess("qrgo \(result.trimmedOutput)")
         } else {
-            print("\(Colors.red)Error:\(Colors.reset) Could not determine installed version. Is qrgo installed via Homebrew?")
+            printError("Could not determine installed version. Is qrgo installed via Homebrew?")
             exit(1)
         }
         exit(0)
@@ -674,31 +688,31 @@ struct QRGoMain {
         }
 
         guard #available(macOS 12.3, *) else {
-            print("This application requires macOS 12.3 or later.")
+            printError("This application requires macOS 12.3 or later.")
             exit(1)
         }
 
         let hasPermission = await ScreenCapturePermissionHelper.checkScreenCapturePermission()
         
         if !hasPermission {
-            print("Screen Recording permission is required for this application.")
-            print("Opening System Settings to enable Screen Recording permission...")
+            printInfo("Screen Recording permission is required for this application.")
+            printInfo("Opening System Settings to enable Screen Recording permission...")
             ScreenCapturePermissionHelper.requestScreenCapturePermission()
             exit(1)
         }
 
-        print("Please select the area containing the QR code...")
+        printWarning("Please select the area containing the QR code...")
 
         if let imagePath = ScreenCaptureHelper.captureSelection() {
-            print("Image saved to: \(imagePath)")
+            printSuccess("Image saved to: \(imagePath)")
             let decodedStrings = QRCodeDecoder.decode(imagePath: imagePath)
             
             if decodedStrings.isEmpty {
-                print("No QR codes found in the selected area.")
+                printError("No QR codes found in the selected area.")
             } else {
                 for (index, string) in decodedStrings.enumerated() {
                     if !copyToClipboard {
-                        print("Decoded QR code \(index + 1): \(string)")
+                        printInfo("Decoded QR code \(index + 1): \(string)")
                     }
                     
                     // Try to open the URL in available emulator
@@ -707,7 +721,7 @@ struct QRGoMain {
                        string.lowercased().starts(with: "cashme://") {
                         let urlToOpen = shouldTransformUrls ? transformUrl(string) : string
                         if shouldTransformUrls && urlToOpen != string {
-                            print("Transformed URL: \(urlToOpen)")
+                            printInfo("Transformed URL: \(urlToOpen)")
                         }
                         if copyToClipboard {
                             copyUrlToClipboard(urlToOpen)
@@ -719,7 +733,7 @@ struct QRGoMain {
                             openUrlInAvailableEmulator(urlToOpen)
                         }
                     } else {
-                        print("Not opening in emulator - URL doesn't start with http://, https://, or cashme://")
+                        printError("Not opening in emulator - URL doesn't start with http://, https://, or cashme://")
                     }
                 }
             }
@@ -727,7 +741,7 @@ struct QRGoMain {
             // Clean up temporary image file
             try? FileManager.default.removeItem(atPath: imagePath)
         } else {
-            print("Screen capture cancelled.")
+            printError("Screen capture cancelled.")
         }
     }
 }
