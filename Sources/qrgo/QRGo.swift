@@ -203,11 +203,6 @@ func openUrlInAvailableEmulator(_ urlString: String) {
     availableOptions.append(("💻 Open on this computer", "local"))
     availableOptions.append(("⏭️ Skip (don't open)", "skip"))
 
-    if availableOptions.isEmpty {
-        printError("No devices available.")
-        return
-    }
-
     let selectedAction: String
 
     // Check if we should use the last device and it's still available
