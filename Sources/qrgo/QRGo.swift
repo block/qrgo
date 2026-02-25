@@ -338,45 +338,50 @@ struct QRGoMain {
 
         printWarning("Please select the area containing the QR code…")
 
-        if let imagePath = ScreenCaptureHelper.captureSelection() {
-            printSuccess("Image saved to: \(imagePath)")
-            let decodedStrings = QRCodeDecoder.decode(imagePath: imagePath)
-            
-            if decodedStrings.isEmpty {
-                printError("No QR codes found in the selected area.")
-            } else {
-                for (index, string) in decodedStrings.enumerated() {
-                    if !copyToClipboard {
-                        printInfo("Decoded QR code \(index + 1): \(string)")
-                    }
-                    
-                    // Try to open the URL in available emulator
-                    if string.lowercased().starts(with: "http://") || 
-                       string.lowercased().starts(with: "https://") ||
-                       string.lowercased().starts(with: "cashme://") {
-                        let urlToOpen = shouldTransformUrls ? transformUrl(string) : string
-                        if shouldTransformUrls && urlToOpen != string {
-                            printInfo("Transformed URL: \(urlToOpen)")
+        do {
+            if let imagePath = try ScreenCaptureHelper.captureSelection() {
+                printSuccess("Image saved to: \(imagePath)")
+                let decodedStrings = QRCodeDecoder.decode(imagePath: imagePath)
+
+                if decodedStrings.isEmpty {
+                    printError("No QR codes found in the selected area.")
+                } else {
+                    for (index, string) in decodedStrings.enumerated() {
+                        if !copyToClipboard {
+                            printInfo("Decoded QR code \(index + 1): \(string)")
                         }
-                        if copyToClipboard {
-                            copyUrlToClipboard(urlToOpen)
-                        } else if let deviceId = targetDevice {
-                            if !openUrlOnDevice(urlToOpen, deviceId: deviceId) {
-                                exit(1)
+
+                        // Try to open the URL in available emulator
+                        if string.lowercased().starts(with: "http://") ||
+                           string.lowercased().starts(with: "https://") ||
+                           string.lowercased().starts(with: "cashme://") {
+                            let urlToOpen = shouldTransformUrls ? transformUrl(string) : string
+                            if shouldTransformUrls && urlToOpen != string {
+                                printInfo("Transformed URL: \(urlToOpen)")
+                            }
+                            if copyToClipboard {
+                                copyUrlToClipboard(urlToOpen)
+                            } else if let deviceId = targetDevice {
+                                if !openUrlOnDevice(urlToOpen, deviceId: deviceId) {
+                                    exit(1)
+                                }
+                            } else {
+                                openUrlInAvailableEmulator(urlToOpen)
                             }
                         } else {
-                            openUrlInAvailableEmulator(urlToOpen)
+                            printError("Not opening in emulator - URL doesn't start with http://, https://, or cashme://")
                         }
-                    } else {
-                        printError("Not opening in emulator - URL doesn't start with http://, https://, or cashme://")
                     }
                 }
-            }
 
-            // Clean up temporary image file
-            try? FileManager.default.removeItem(atPath: imagePath)
-        } else {
-            printError("Screen capture cancelled.")
+                // Clean up temporary image file
+                try? FileManager.default.removeItem(atPath: imagePath)
+            } else {
+                printError("Screen capture cancelled.")
+            }
+        } catch {
+            printError("Screen capture failed: \(error.localizedDescription)")
+            exit(1)
         }
     }
 }
