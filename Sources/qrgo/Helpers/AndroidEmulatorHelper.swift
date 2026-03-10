@@ -1,5 +1,4 @@
 import Foundation
-import qrgoLib
 
 class AndroidEmulatorHelper {
     private static var _cachedAdbPath: String? = nil

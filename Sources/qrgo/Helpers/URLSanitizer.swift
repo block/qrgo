@@ -16,7 +16,7 @@ import Foundation
 ///   - urlString: The raw URL string to validate.
 ///   - allowedSchemes: Set of lowercase scheme strings to permit. Defaults to `["http", "https", "cashme"]`.
 /// - Returns: The normalized URL string if valid, or `nil` if it should be rejected.
-public func sanitizeUrlForAndroidShell(
+func sanitizeUrlForAndroidShell(
     _ urlString: String,
     allowedSchemes: Set<String> = ["http", "https", "cashme"]
 ) -> String? {
