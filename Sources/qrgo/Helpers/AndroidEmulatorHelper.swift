@@ -1,4 +1,5 @@
 import Foundation
+import qrgoLib
 
 class AndroidEmulatorHelper {
     private static var _cachedAdbPath: String? = nil
@@ -107,10 +108,31 @@ class AndroidEmulatorHelper {
         return props
     }
 
+    private static func validateAndSanitizeUrl(_ urlString: String) -> String? {
+        guard let safe = sanitizeUrlForAndroidShell(urlString) else {
+            guard let url = URL(string: urlString) else {
+                printError("Malformed or unsupported URL, cannot open on Android device.")
+                return nil
+            }
+            let scheme = url.scheme?.lowercased() ?? ""
+            if !["http", "https", "cashme"].contains(scheme) {
+                printError("URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. Only http, https, and cashme are permitted.")
+            } else {
+                printError("URL contains characters that are not permitted for Android shell.")
+            }
+            return nil
+        }
+        return safe
+    }
+
     @discardableResult
     static func openUrl(_ urlString: String, deviceId: String? = nil, validated: Bool = false) -> Bool {
         guard let adbPath = findAdbPath() else {
             printError("ADB not found. Please install Android SDK or ensure ADB is in your PATH.")
+            return false
+        }
+
+        guard let safeUrlString = validateAndSanitizeUrl(urlString) else {
             return false
         }
 
@@ -133,7 +155,7 @@ class AndroidEmulatorHelper {
 
         let result = Shell.runCommand(
             adbPath,
-            arguments: ["-s", targetDevice, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-c", "android.intent.category.BROWSABLE", "-d", urlString],
+            arguments: ["-s", targetDevice, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-c", "android.intent.category.BROWSABLE", "-d", safeUrlString],
             mergeStderr: true
         )
         let deviceName = getDeviceFriendlyName(targetDevice)
