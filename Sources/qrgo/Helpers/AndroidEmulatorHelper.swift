@@ -114,7 +114,7 @@ class AndroidEmulatorHelper {
                 return nil
             }
             let scheme = url.scheme?.lowercased() ?? ""
-            if !["http", "https", "cashme"].contains(scheme) {
+            if !allowedUrlSchemes.contains(scheme) {
                 printError("URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. Only http, https, and cashme are permitted.")
             } else {
                 printError("URL contains characters that are not permitted for Android shell.")
@@ -154,7 +154,7 @@ class AndroidEmulatorHelper {
 
         let result = Shell.runCommand(
             adbPath,
-            arguments: ["-s", targetDevice, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-c", "android.intent.category.BROWSABLE", "-d", safeUrlString],
+            arguments: ["-s", targetDevice, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-c", "android.intent.category.BROWSABLE", "-d", "'\(safeUrlString)'"],
             mergeStderr: true
         )
         let deviceName = getDeviceFriendlyName(targetDevice)

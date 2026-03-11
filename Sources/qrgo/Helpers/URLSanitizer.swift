@@ -1,24 +1,31 @@
 import Foundation
 
-/// Validates and sanitizes a URL string for safe use with Android shell commands via `adb shell am start -d`.
+/// Allowed URL schemes for opening on Android devices.
+let allowedUrlSchemes: Set<String> = ["http", "https", "cashme"]
+
+/// Validates and sanitizes a URL string for safe embedding in a single-quoted POSIX shell argument.
 ///
-/// Because `adb shell` invokes the Android `/bin/sh`, shell metacharacters in the URL would be
-/// interpreted as shell syntax rather than as URL data. This function:
+/// Because `adb shell` joins its arguments with spaces and passes the result to the Android
+/// device's `/bin/sh`, the caller must wrap the returned string in single quotes (e.g.
+/// `"-d", "'\(safe)'"`) to prevent shell interpretation of characters like `&`, `;`, `|`, etc.
+///
+/// This function:
 ///   1. Rejects malformed URLs
 ///   2. Enforces an allowlist of URL schemes
 ///   3. Re-serializes via `URL` (which normalizes percent-encoding)
-///   4. Rejects any characters with special meaning to POSIX shells
+///   4. Rejects characters that can break out of a single-quoted POSIX string: `'`, `\0`, `\r`, `\n`
 ///
-/// Note: percent-encoded metacharacters (e.g. `%3B` for `;`) survive safely — they appear as
-/// literal `%`, digit, and letter characters in the serialized string, none of which are dangerous.
+/// Note: Characters like `&`, `;`, `|`, `>`, `<` are safe to return — they cannot escape
+/// single quotes and will be treated literally by the shell when the caller wraps the URL
+/// in single quotes.
 ///
 /// - Parameters:
 ///   - urlString: The raw URL string to validate.
-///   - allowedSchemes: Set of lowercase scheme strings to permit. Defaults to `["http", "https", "cashme"]`.
+///   - allowedSchemes: Set of lowercase scheme strings to permit. Defaults to `allowedUrlSchemes`.
 /// - Returns: The normalized URL string if valid, or `nil` if it should be rejected.
 func sanitizeUrlForAndroidShell(
     _ urlString: String,
-    allowedSchemes: Set<String> = ["http", "https", "cashme"]
+    allowedSchemes: Set<String> = allowedUrlSchemes
 ) -> String? {
     guard let url = URL(string: urlString) else { return nil }
 
@@ -27,9 +34,9 @@ func sanitizeUrlForAndroidShell(
     // Re-serialize to normalize percent-encoding
     let sanitized = url.absoluteString
 
-    // Reject shell metacharacters. Note: space is included as a safety net even though
-    // URL(string:) percent-encodes spaces in path/query components.
-    let dangerous = CharacterSet(charactersIn: ";&|><`$()\\\"'\r\n\0 ")
+    // Reject characters that can break out of a single-quoted POSIX shell string.
+    // The caller is responsible for wrapping the result in single quotes.
+    let dangerous = CharacterSet(charactersIn: "'\r\n\0")
     guard !sanitized.unicodeScalars.contains(where: { dangerous.contains($0) }) else { return nil }
 
     return sanitized
