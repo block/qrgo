@@ -152,9 +152,10 @@ class AndroidEmulatorHelper {
             }
         }
 
+        let shellCommand = "am start -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d '\(safeUrlString)'"
         let result = Shell.runCommand(
             adbPath,
-            arguments: ["-s", targetDevice, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-c", "android.intent.category.BROWSABLE", "-d", "'\(safeUrlString)'"],
+            arguments: ["-s", targetDevice, "shell", shellCommand],
             mergeStderr: true
         )
         let deviceName = getDeviceFriendlyName(targetDevice)

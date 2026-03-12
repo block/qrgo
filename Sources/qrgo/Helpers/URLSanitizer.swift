@@ -3,21 +3,18 @@ import Foundation
 /// Allowed URL schemes for opening on Android devices.
 let allowedUrlSchemes: Set<String> = ["http", "https", "cashme"]
 
-/// Validates and sanitizes a URL string for safe embedding in a single-quoted POSIX shell argument.
+/// Validates and sanitizes a URL string for safe use inside a single-quoted POSIX shell argument.
 ///
-/// Because `adb shell` joins its arguments with spaces and passes the result to the Android
-/// device's `/bin/sh`, the caller must wrap the returned string in single quotes (e.g.
-/// `"-d", "'\(safe)'"`) to prevent shell interpretation of characters like `&`, `;`, `|`, etc.
+/// This function does NOT reject shell metacharacters like `&`, `;`, or `|` — those are safe
+/// when the URL is wrapped in single quotes by the caller (e.g. `"am start -d '\(safe)'"` passed
+/// as a single command string to `adb shell`). It only rejects characters that can break out of
+/// single-quoted strings themselves.
 ///
 /// This function:
 ///   1. Rejects malformed URLs
 ///   2. Enforces an allowlist of URL schemes
 ///   3. Re-serializes via `URL` (which normalizes percent-encoding)
 ///   4. Rejects characters that can break out of a single-quoted POSIX string: `'`, `\0`, `\r`, `\n`
-///
-/// Note: Characters like `&`, `;`, `|`, `>`, `<` are safe to return — they cannot escape
-/// single quotes and will be treated literally by the shell when the caller wraps the URL
-/// in single quotes.
 ///
 /// - Parameters:
 ///   - urlString: The raw URL string to validate.
