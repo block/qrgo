@@ -1,7 +1,15 @@
 import Foundation
 
-/// Allowed URL schemes for opening on Android devices.
+/// The canonical allowlist of URL schemes permitted for opening on Android devices.
+/// This is the single source of truth used by both the sanitizer and error reporting.
 let allowedUrlSchemes: Set<String> = ["http", "https", "cashme"]
+
+/// Reasons a URL can be rejected by `sanitizeUrlForAndroidShell`.
+enum URLSanitizationError: Error {
+    case malformed
+    case disallowedScheme(String)
+    case dangerousCharacters
+}
 
 /// Validates and sanitizes a URL string for safe use inside a single-quoted POSIX shell argument.
 ///
@@ -19,14 +27,15 @@ let allowedUrlSchemes: Set<String> = ["http", "https", "cashme"]
 /// - Parameters:
 ///   - urlString: The raw URL string to validate.
 ///   - allowedSchemes: Set of lowercase scheme strings to permit. Defaults to `allowedUrlSchemes`.
-/// - Returns: The normalized URL string if valid, or `nil` if it should be rejected.
+/// - Returns: The normalized URL string on success, or a `URLSanitizationError` describing the failure.
 func sanitizeUrlForAndroidShell(
     _ urlString: String,
     allowedSchemes: Set<String> = allowedUrlSchemes
-) -> String? {
-    guard let url = URL(string: urlString) else { return nil }
+) -> Result<String, URLSanitizationError> {
+    guard let url = URL(string: urlString) else { return .failure(.malformed) }
 
-    guard let scheme = url.scheme?.lowercased(), allowedSchemes.contains(scheme) else { return nil }
+    let scheme = url.scheme?.lowercased() ?? ""
+    guard allowedSchemes.contains(scheme) else { return .failure(.disallowedScheme(scheme)) }
 
     // Re-serialize to normalize percent-encoding
     let sanitized = url.absoluteString
@@ -34,7 +43,9 @@ func sanitizeUrlForAndroidShell(
     // Reject characters that can break out of a single-quoted POSIX shell string.
     // The caller is responsible for wrapping the result in single quotes.
     let dangerous = CharacterSet(charactersIn: "'\r\n\0")
-    guard !sanitized.unicodeScalars.contains(where: { dangerous.contains($0) }) else { return nil }
+    guard !sanitized.unicodeScalars.contains(where: { dangerous.contains($0) }) else {
+        return .failure(.dangerousCharacters)
+    }
 
-    return sanitized
+    return .success(sanitized)
 }

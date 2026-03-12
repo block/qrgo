@@ -108,20 +108,19 @@ class AndroidEmulatorHelper {
     }
 
     private static func validateAndSanitizeUrl(_ urlString: String) -> String? {
-        guard let safe = sanitizeUrlForAndroidShell(urlString) else {
-            guard let url = URL(string: urlString) else {
-                printError("Malformed or unsupported URL, cannot open on Android device.")
-                return nil
-            }
-            let scheme = url.scheme?.lowercased() ?? ""
-            if !allowedUrlSchemes.contains(scheme) {
-                printError("URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. Only http, https, and cashme are permitted.")
-            } else {
-                printError("URL contains characters that are not permitted for Android shell.")
-            }
+        switch sanitizeUrlForAndroidShell(urlString) {
+        case .success(let safe):
+            return safe
+        case .failure(.malformed):
+            printError("Malformed or unsupported URL, cannot open on Android device.")
+            return nil
+        case .failure(.disallowedScheme(let scheme)):
+            printError("URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. Only http, https, and cashme are permitted.")
+            return nil
+        case .failure(.dangerousCharacters):
+            printError("URL contains characters that are not permitted for Android shell.")
             return nil
         }
-        return safe
     }
 
     @discardableResult
@@ -152,6 +151,10 @@ class AndroidEmulatorHelper {
             }
         }
 
+        // `adb shell <string>` passes the string to `/bin/sh -c` on the Android device.
+        // The URL is wrapped in single quotes so the shell treats &, ;, |, etc. as literal
+        // URL data rather than shell operators. The sanitizer guarantees the URL contains no
+        // single quotes, making breakout from the single-quoted string impossible.
         let shellCommand = "am start -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d '\(safeUrlString)'"
         let result = Shell.runCommand(
             adbPath,
