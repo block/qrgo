@@ -74,6 +74,11 @@ swift build -c release
 
 The binary will be located at `.build/release/qrgo`
 
+## AI Rules
+
+AI rules are defined within the `ai-rules` directory. If they are updated, run `ai-rules generate` to invalidate rules for all agents. 
+See [block/ai-rules](https://github.com/block/ai-rules) for installation instructions and other documentation.
+
 ## Contributing
 
 For information about creating new releases, please see [RELEASING.md](RELEASING.md).
