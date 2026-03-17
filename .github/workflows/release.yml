@@ -58,6 +58,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate token for tap release
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BLOCK_HOMEBREW_TAP_APP_ID }}
+          private-key: ${{ secrets.BLOCK_HOMEBREW_TAP_PRIVATE_KEY }}
+          owner: block
+          repositories: homebrew-tap
+
       - name: Trigger Formula Bump
         run: |
           gh workflow run bump-formula.yaml \
@@ -68,4 +77,4 @@ jobs:
             -f artifact_url=https://github.com/block/qrgo/releases/download/${{ github.ref_name }}/qrgo-release.tar.gz \
             -f sha256=${{ steps.generate_hash.outputs.file_hash }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
