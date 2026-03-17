@@ -11,29 +11,30 @@ https://github.com/user-attachments/assets/3fe7a7d3-17a0-4831-a8d7-17e59d591271
 - For Android: Android SDK with ADB and at least one configured emulator
 
 ## Installation
+
 You can install the QR scanner using Homebrew:
 
-```bash 
+```sh
 brew install block/tap/qrgo
 ```
 
 ## Usage
 
-1. Make sure you have either an iOS Simulator or Android emulator running
+1. Make sure you have either an iOS Simulator or Android emulator running.
 2. Run the command:
-```bash
+```sh
 qrgo
 ```
-3. Select the area of your screen containing the QR code
+3. Select the area of your screen containing the QR code.
 4. The tool will:
-   - Save the captured image
-   - Decode any QR codes found
-   - If both iOS and Android emulators are running, prompt you to choose the target platform
-   - Open any valid URLs in the selected emulator
+   - Save the captured image.
+   - Decode any QR codes found.
+   - If both iOS and Android emulators are running, prompt you to choose the target platform.
+   - Open any valid URLs in the selected emulator.
 
 ### Options
 
-```
+```sh
 -d, --device <id>      Target a specific device by ID (skips device selection)
                        Android: emulator-5554, 192.168.1.100:5555, or USB serial
                        iOS: Simulator UDID
@@ -45,7 +46,7 @@ qrgo
 
 ### Examples
 
-```bash
+```sh
 # Interactive mode - prompts for device selection
 qrgo
 
@@ -66,13 +67,13 @@ qrgo -d emulator-5554 -t
 
 If you want to build from source:
 
-```bash
+```sh
 git clone https://github.com/block/qrgo.git
 cd qrgo
 swift build -c release
 ```
 
-The binary will be located at `.build/release/qrgo`
+The binary will be located at `.build/release/qrgo`;
 
 ## AI Rules
 
