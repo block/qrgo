@@ -51,12 +51,13 @@ jobs:
 
       - name: Create GitHub release
         run: |
-          gh release create "${{ github.ref_name }}" \
+          gh release create "$TAG" \
             ./qrgo-release.tar.gz \
-            --title "Release ${{ github.ref_name }}" \
+            --title "Release $TAG" \
             --generate-notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
 
       - name: Generate token for tap release
         id: generate_token
@@ -73,8 +74,10 @@ jobs:
             --repo block/homebrew-tap \
             -f repo=block/qrgo \
             -f formula=qrgo \
-            -f tag=${{ github.ref_name }} \
-            -f artifact_url=https://github.com/block/qrgo/releases/download/${{ github.ref_name }}/qrgo-release.tar.gz \
-            -f sha256=${{ steps.generate_hash.outputs.file_hash }}
+            -f "tag=$TAG" \
+            -f "artifact_url=https://github.com/block/qrgo/releases/download/$TAG/qrgo-release.tar.gz" \
+            -f "sha256=$FILE_HASH"
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          TAG: ${{ github.ref_name }}
+          FILE_HASH: ${{ steps.generate_hash.outputs.file_hash }}
