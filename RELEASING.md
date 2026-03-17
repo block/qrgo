@@ -10,9 +10,10 @@ The project is configured to automatically update the Homebrew formula when a ne
    ```bash
    git tag X.Y.Z
    git push origin X.Y.Z
-   ``
+   ```
 
-2. CI will automatically build and publish bottles to the Block tap
+2. CI will automatically build & publish a release, and it'll initialize a formula bump in [block/homebrew-tap](https://github.com/block/homebrew-tap).
+3. The formula bump will open a PR in [block/homebrew-tap](https://github.com/block/homebrew-tap); once approved and merged, you're done.
 
 ## Verification
 
