@@ -31,7 +31,9 @@ The generated binary will be located at `.build/release/qrgo`.
 The project uses Swift Package Manager (SPM) with no external dependencies, relying on native macOS frameworks: `ScreenCaptureKit`, `Vision`, `CoreImage`, and `AppKit`.
 
 - **Sources/qrgo/** - Main source directory
-  - **QRGo.swift** - CLI entry point with `@main` struct and device/URL handling logic
+  - **QRGo.swift** - CLI entry point with `@main` struct and command dispatch
+  - **QRGoRunner.swift** - Shared QR capture, decode, URL transformation, target selection, and URL opening workflow
+  - **MenuBarApp.swift** - AppKit menu bar app, native target chooser, and menu bar notifications/alerts
   - **Helpers/** - Modular helper classes and utilities:
     - `Shell.swift` - Shell command execution (`ShellResult` struct, static methods)
     - `Colors.swift` - ANSI color codes and print helpers (`printError`, `printSuccess`, etc.)
@@ -40,7 +42,12 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `QRCodeDecoder.swift` - QR/barcode detection using Vision framework
     - `SimulatorHelper.swift` - iOS Simulator detection and URL opening via `xcrun simctl`
     - `AndroidEmulatorHelper.swift` - Android device/emulator detection via ADB
-- **Package.swift** - SPM manifest (requires macOS 12+, Swift 5.5+)
+    - `ExecutablePathHelper.swift` - Current executable path resolution for launchers and login items
+    - `MenuBarLaunchHelper.swift` - Non-blocking menu bar launcher for the public `--menu-bar` flag
+    - `MenuBarInstanceLock.swift` - Single-instance lock for the menu bar agent process
+    - `QRGoLogger.swift` - Unified Logging helpers for menu bar logs visible in macOS Console
+    - `LoginItemHelper.swift` - LaunchAgent install/remove helpers for starting menu bar mode at login
+- **Package.swift** - SPM manifest (requires macOS 12.3+, Swift 5.5+)
 - **scripts/** - Local development scripts:
   - `build.sh` - Build wrapper that runs `swift build`, auto-installs `xcsift` with Homebrew when missing, and formats output with `xcsift`
 - **.build/** - Build artifacts (gitignored)
