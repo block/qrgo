@@ -58,7 +58,7 @@ Remove the login item:
 qrgo --uninstall-login-item
 ```
 
-You can also right-click the menu bar icon to scan, toggle launch at login, or quit QRGo.
+You can also right-click the menu bar icon to scan, reopen the last scanned QR code, toggle launch at login, or quit QRGo.
 
 ### Options
 
@@ -69,6 +69,7 @@ You can also right-click the menu bar icon to scan, toggle launch at login, or q
 -t, --transform-urls   Transform specific URLs to use custom URL schemes
                        (e.g., cash.app URLs to cashme:// scheme)
 -c, --copy             Copy the parsed URL to clipboard
+--open-last            Open the last scanned QR code
 --menu-bar             Start QRGo as a macOS menu bar app
 --install-login-item   Start the menu bar app automatically at login
 --uninstall-login-item Stop starting the menu bar app automatically at login
@@ -90,6 +91,12 @@ qrgo -d A1B2C3D4-E5F6-7890-ABCD-EF1234567890
 
 # Copy URL to clipboard instead of opening
 qrgo -c
+
+# Open the last scanned QR code and choose a target
+qrgo --open-last
+
+# Open the last scanned QR code on a specific device
+qrgo --open-last -d emulator-5554
 
 # Start the menu bar app
 qrgo --menu-bar

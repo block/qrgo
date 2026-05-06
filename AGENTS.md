@@ -52,6 +52,7 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `ScreenCaptureHelper.swift` - Screen region capture via `screencapture`
     - `ScreenCapturePermissionHelper.swift` - Screen recording permission checks
     - `QRCodeDecoder.swift` - QR/barcode detection using Vision framework
+    - `LastScanStore.swift` - Last scanned QR URL persistence shared by terminal and menu-bar reopen flows
     - `SimulatorHelper.swift` - iOS Simulator detection and URL opening via `xcrun simctl`
     - `AndroidEmulatorHelper.swift` - Android device/emulator detection via ADB
     - `ExecutablePathHelper.swift` - Current executable path resolution for launchers and login items

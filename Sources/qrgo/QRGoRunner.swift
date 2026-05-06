@@ -130,13 +130,35 @@ struct QRGoRunner {
     let targetSelector: QRGoTargetSelecting
     let notifier: QRGoNotifying
 
-    func run() async -> Bool {
+    func openLastScan() async -> Bool {
+        guard let urlString = LastScanStore.lastScannedURL else {
+            notifier.warning("No QR code has been scanned yet.")
+            return false
+        }
+        guard isSupportedUrl(urlString) else {
+            notifier.error("The last scanned QR code is not a supported URL.")
+            return false
+        }
+        if let deviceId = configuration.targetDevice,
+           !validateConfiguredDevice(deviceId) {
+            return false
+        }
+
+        notifier.info("Last scanned QR code: \(urlString)")
+        let urlToOpen = configuration.shouldTransformUrls ? transformUrl(urlString) : urlString
+        if configuration.shouldTransformUrls && urlToOpen != urlString {
+            notifier.info("Transformed URL: \(urlToOpen)")
+        }
         if let deviceId = configuration.targetDevice {
-            let deviceType = detectDeviceType(deviceId)
-            if !validateDevice(deviceId, type: deviceType) {
-                printDeviceNotFoundError(deviceId)
-                return false
-            }
+            return openUrlOnConfiguredDevice(urlToOpen, deviceId: deviceId)
+        }
+        return openUrlInAvailableTarget(urlToOpen)
+    }
+
+    func run() async -> Bool {
+        if let deviceId = configuration.targetDevice,
+           !validateConfiguredDevice(deviceId) {
+            return false
         }
 
         guard #available(macOS 12.3, *) else {
@@ -187,6 +209,7 @@ struct QRGoRunner {
                     notifier.error("Not opening in emulator - URL doesn't start with http://, https://, or cashme://")
                     continue
                 }
+                saveLastScan(string)
 
                 let urlToOpen = configuration.shouldTransformUrls ? transformUrl(string) : string
                 if configuration.shouldTransformUrls && urlToOpen != string {
@@ -203,15 +226,12 @@ struct QRGoRunner {
                         }
                     }
                 } else if let deviceId = configuration.targetDevice {
-                    let opened = openUrlOnDevice(urlToOpen, deviceId: deviceId)
-                    if notifier.reportsDeviceOpenResults {
-                        reportOpenResult(opened, for: targetAction(for: deviceId))
-                    }
+                    let opened = openUrlOnConfiguredDevice(urlToOpen, deviceId: deviceId)
                     if !opened {
                         succeeded = false
                     }
                 } else {
-                    openUrlInAvailableTarget(urlToOpen)
+                    _ = openUrlInAvailableTarget(urlToOpen)
                 }
             }
             return succeeded
@@ -221,16 +241,40 @@ struct QRGoRunner {
         }
     }
 
-    private func openUrlInAvailableTarget(_ urlString: String) {
+    private func openUrlInAvailableTarget(_ urlString: String) -> Bool {
         let options = makeAvailableTargetOptions(includesCopyOption: configuration.showsCopyTargetOption)
         guard let selectedAction = targetSelector.selectTarget(for: urlString, from: options) else {
-            return
+            return false
         }
 
         let opened = openUrl(urlString, action: selectedAction)
         if notifier.reportsDeviceOpenResults {
             reportOpenResult(opened, for: selectedAction)
         }
+        return opened
+    }
+
+    private func openUrlOnConfiguredDevice(_ urlString: String, deviceId: String) -> Bool {
+        let opened = openUrlOnDevice(urlString, deviceId: deviceId)
+        if notifier.reportsDeviceOpenResults {
+            reportOpenResult(opened, for: targetAction(for: deviceId))
+        }
+        return opened
+    }
+
+    private func saveLastScan(_ urlString: String) {
+        if !LastScanStore.save(urlString) {
+            notifier.warning("Could not save this QR code as the last scan.")
+        }
+    }
+
+    private func validateConfiguredDevice(_ deviceId: String) -> Bool {
+        let deviceType = detectDeviceType(deviceId)
+        if !validateDevice(deviceId, type: deviceType) {
+            printDeviceNotFoundError(deviceId)
+            return false
+        }
+        return true
     }
 
     private func reportOpenResult(_ opened: Bool, for action: TargetAction) {
@@ -467,7 +511,7 @@ func openUrl(_ urlString: String, action: TargetAction) -> Bool {
     }
 }
 
-private func isSupportedUrl(_ string: String) -> Bool {
+func isSupportedUrl(_ string: String) -> Bool {
     let lowercased = string.lowercased()
     return lowercased.starts(with: "http://") ||
         lowercased.starts(with: "https://") ||

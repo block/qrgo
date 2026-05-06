@@ -15,6 +15,7 @@ struct QRGoMain {
           -t, --transform-urls   Transform specific URLs to use custom URL schemes
                                  (e.g., cash.app URLs to cashme:// scheme)
           -c, --copy             Copy the parsed URL to clipboard
+          --open-last            Open the last scanned QR code
           --menu-bar             Start QRGo as a macOS menu bar app
           --install-login-item   Start the menu bar app automatically at login
           --uninstall-login-item Stop starting the menu bar app automatically at login
@@ -63,6 +64,15 @@ struct QRGoMain {
 
         printTerminalMenuBarTip()
 
+        if args.contains("--open-last") {
+            let runner = QRGoRunner(
+                configuration: makeTerminalOpenLastConfiguration(),
+                targetSelector: TerminalTargetSelector(),
+                notifier: TerminalNotifier()
+            )
+            exit(await runner.openLastScan() ? 0 : 1)
+        }
+
         let runner = QRGoRunner(
             configuration: makeTerminalConfiguration(),
             targetSelector: TerminalTargetSelector(),
@@ -87,6 +97,18 @@ struct QRGoMain {
             targetDevice: parseDeviceArgument(),
             showsCapturePath: true,
             showsSelectionPrompt: true,
+            showsCopyTargetOption: false
+        )
+    }
+
+    private static func makeTerminalOpenLastConfiguration() -> QRGoRunConfiguration {
+        return QRGoRunConfiguration(
+            shouldTransformUrls: CommandLine.arguments.contains("--transform-urls") ||
+                CommandLine.arguments.contains("-t"),
+            copyToClipboard: false,
+            targetDevice: parseDeviceArgument(),
+            showsCapturePath: false,
+            showsSelectionPrompt: false,
             showsCopyTargetOption: false
         )
     }

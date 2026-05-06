@@ -44,7 +44,7 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let configuration: QRGoRunConfiguration
     private let notifier = MenuBarNotifier()
-    private var isScanning = false
+    private var isRunningAction = false
     private var statusItem: NSStatusItem?
 
     init(configuration: QRGoRunConfiguration) {
@@ -81,13 +81,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func startScan() {
-        guard !isScanning else {
-            notifier.warning("QRGo is already scanning.")
+        guard !isRunningAction else {
+            notifier.warning("QRGo is already busy.")
             return
         }
 
         QRGoLogger.menuBarInfo("Starting QR scan from menu bar.")
-        isScanning = true
+        isRunningAction = true
         Task { @MainActor in
             let runner = QRGoRunner(
                 configuration: configuration,
@@ -95,7 +95,26 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 notifier: notifier
             )
             _ = await runner.run()
-            isScanning = false
+            isRunningAction = false
+        }
+    }
+
+    @objc private func openLastScan() {
+        guard !isRunningAction else {
+            notifier.warning("QRGo is already busy.")
+            return
+        }
+
+        QRGoLogger.menuBarInfo("Opening last scanned QR code from menu bar.")
+        isRunningAction = true
+        Task { @MainActor in
+            let runner = QRGoRunner(
+                configuration: configuration,
+                targetSelector: AppKitTargetSelector(),
+                notifier: notifier
+            )
+            _ = await runner.openLastScan()
+            isRunningAction = false
         }
     }
 
@@ -122,7 +141,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         guard let statusItem = statusItem else { return }
 
         let menu = NSMenu()
+        // AppKit auto-enables items with valid actions, which would override the last-scan disabled state.
+        menu.autoenablesItems = false
         menu.addItem(NSMenuItem(title: "Scan QR Code", action: #selector(startScan), keyEquivalent: ""))
+        let openLastItem = NSMenuItem(title: "Open Last QR Code", action: #selector(openLastScan), keyEquivalent: "")
+        openLastItem.isEnabled = LastScanStore.hasLastScan && !isRunningAction
+        menu.addItem(openLastItem)
         menu.addItem(.separator())
 
         let loginTitle = LoginItemHelper.isInstalled ? "Disable Launch at Login" : "Enable Launch at Login"
