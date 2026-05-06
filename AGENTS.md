@@ -12,6 +12,18 @@ scripts/build.sh release
 
 The generated binary will be located at `.build/release/qrgo`.
 
+# Linting
+
+Run SwiftLint with:
+
+```bash
+scripts/lint.sh
+```
+
+The lint script auto-installs SwiftLint with Homebrew when missing. `scripts/build.sh` runs this lint step before invoking `swift build`.
+
+Always run `scripts/lint.sh` before creating or amending a commit.
+
 ### `xcsift` Output
 
 - Build/test/snapshot wrappers pipe `xcodebuild` through `xcsift -f toon -w` when installed; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
@@ -48,8 +60,10 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `QRGoLogger.swift` - Unified Logging helpers for menu bar logs visible in macOS Console
     - `LoginItemHelper.swift` - LaunchAgent install/remove helpers for starting menu bar mode at login
 - **Package.swift** - SPM manifest (requires macOS 12.3+, Swift 5.5+)
+- **.swiftlint.yml** - SwiftLint configuration
 - **scripts/** - Local development scripts:
-  - `build.sh` - Build wrapper that runs `swift build`, auto-installs `xcsift` with Homebrew when missing, and formats output with `xcsift`
+  - `lint.sh` - SwiftLint wrapper that auto-installs SwiftLint with Homebrew when missing
+  - `build.sh` - Build wrapper that runs SwiftLint, auto-installs `xcsift` with Homebrew when missing, runs `swift build`, and formats output with `xcsift`
 - **.build/** - Build artifacts (gitignored)
 
 ## Coding style & naming conventions

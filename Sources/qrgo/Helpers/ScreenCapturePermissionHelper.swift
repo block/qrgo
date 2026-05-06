@@ -13,7 +13,10 @@ class ScreenCapturePermissionHelper {
     }
 
     static func requestScreenCapturePermission() {
-        let result = Shell.runCommand("/usr/bin/open", arguments: ["x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"])
+        let result = Shell.runCommand(
+            "/usr/bin/open",
+            arguments: ["x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"]
+        )
         if result.succeeded {
             printInfo("Please enable Screen Recording permission in System Settings and restart the application.")
         } else {

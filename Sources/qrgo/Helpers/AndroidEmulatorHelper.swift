@@ -1,7 +1,7 @@
 import Foundation
 
 class AndroidEmulatorHelper {
-    private static var _cachedAdbPath: String? = nil
+    private static var _cachedAdbPath: String?
     private static var _adbPathChecked = false
 
     static func findAdbPath() -> String? {
@@ -96,7 +96,9 @@ class AndroidEmulatorHelper {
         guard result.succeeded else { return [:] }
 
         var props: [String: String] = [:]
-        let values = result.stdout.components(separatedBy: "|||").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let values = result.stdout.components(separatedBy: "|||").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         for (index, prop) in properties.enumerated() where index < values.count {
             props[prop] = values[index]
         }
@@ -111,7 +113,10 @@ class AndroidEmulatorHelper {
             printError("Malformed or unsupported URL, cannot open on Android device.")
             return nil
         case .failure(.disallowedScheme(let scheme)):
-            printError("URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. Only http, https, and cashme are permitted.")
+            printError(
+                "URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. " +
+                    "Only http, https, and cashme are permitted."
+            )
             return nil
         case .failure(.dangerousCharacters):
             printError("URL contains characters that are not permitted for Android shell.")
@@ -151,7 +156,12 @@ class AndroidEmulatorHelper {
         // The URL is wrapped in single quotes so the shell treats &, ;, |, etc. as literal
         // URL data rather than shell operators. The sanitizer guarantees the URL contains no
         // single quotes, making breakout from the single-quoted string impossible.
-        let shellCommand = "am start -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d '\(safeUrlString)'"
+        let shellCommand = [
+            "am start",
+            "-a android.intent.action.VIEW",
+            "-c android.intent.category.BROWSABLE",
+            "-d '\(safeUrlString)'"
+        ].joined(separator: " ")
         let result = Shell.runCommand(
             adbPath,
             arguments: ["-s", targetDevice, "shell", shellCommand],

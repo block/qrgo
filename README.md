@@ -113,6 +113,16 @@ scripts/build.sh release
 
 The build script automatically installs [`xcsift`](https://github.com/ldomaradzki/xcsift) with Homebrew if it is not already available on your `PATH`. The binary will be located at `.build/release/qrgo`.
 
+## Development
+
+Run SwiftLint directly:
+
+```sh
+scripts/lint.sh
+```
+
+The build script runs SwiftLint before compiling. If SwiftLint is not available on your `PATH`, the lint script automatically installs it with Homebrew.
+
 ## Agent Rules
 
 Agent rules are defined in [AGENTS.md](AGENTS.md).

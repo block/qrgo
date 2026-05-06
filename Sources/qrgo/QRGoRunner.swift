@@ -146,7 +146,10 @@ struct QRGoRunner {
 
         let hasPermission = await ScreenCapturePermissionHelper.checkScreenCapturePermission()
         if !hasPermission {
-            notifier.warning("Screen Recording permission is required for this application. System Settings will open so you can enable it.")
+            notifier.warning(
+                "Screen Recording permission is required for this application. " +
+                    "System Settings will open so you can enable it."
+            )
             ScreenCapturePermissionHelper.requestScreenCapturePermission()
             return false
         }
@@ -273,7 +276,7 @@ struct QRGoRunner {
 }
 
 enum DeviceMemory {
-    static var lastChoice: String? = nil
+    static var lastChoice: String?
     static var shouldUseLast = false
 }
 
@@ -297,10 +300,8 @@ func transformUrl(_ urlString: String) -> String {
         domainAndPath = String(urlString.dropFirst("http://".count))
     }
 
-    for domain in domainsToTransform {
-        if domainAndPath.starts(with: domain.lowercased()) {
-            return "cashme://" + domainAndPath
-        }
+    for domain in domainsToTransform where domainAndPath.starts(with: domain.lowercased()) {
+        return "cashme://" + domainAndPath
     }
 
     return urlString
@@ -339,19 +340,21 @@ func detectDeviceType(_ deviceId: String) -> DeviceType {
 }
 
 func validateiOSDevice(_ udid: String) -> Bool {
-    let result = Shell.runCommand("/usr/bin/xcrun", arguments: ["simctl", "list", "devices", "booted", "-j"], suppressStderr: true)
+    let result = Shell.runCommand(
+        "/usr/bin/xcrun",
+        arguments: ["simctl", "list", "devices", "booted", "-j"],
+        suppressStderr: true
+    )
     guard result.succeeded,
           let data = result.stdout.data(using: .utf8),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let devices = json["devices"] as? [String: [[String: Any]]] else {
         return false
     }
-    for deviceList in devices.values {
-        if deviceList.contains(where: {
+    for deviceList in devices.values where deviceList.contains(where: {
             ($0["udid"] as? String) == udid && ($0["state"] as? String) == "Booted"
         }) {
-            return true
-        }
+        return true
     }
     return false
 }

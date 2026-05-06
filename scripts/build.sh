@@ -7,6 +7,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 configuration="$1"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
 
 case "$configuration" in
     debug|release)
@@ -17,6 +19,9 @@ case "$configuration" in
         exit 64
         ;;
 esac
+
+cd "$repo_root"
+"$script_dir/lint.sh"
 
 if ! command -v xcsift >/dev/null 2>&1; then
     if ! command -v brew >/dev/null 2>&1; then

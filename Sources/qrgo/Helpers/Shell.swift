@@ -28,7 +28,7 @@ enum Shell {
         task.arguments = arguments
         task.standardOutput = stdoutPipe
 
-        var stderrPipe: Pipe? = nil
+        var stderrPipe: Pipe?
         if mergeStderr {
             task.standardError = stdoutPipe
         } else if suppressStderr {
@@ -39,7 +39,7 @@ enum Shell {
             stderrPipe = pipe
         }
 
-        var inputPipe: Pipe? = nil
+        var inputPipe: Pipe?
         if input != nil {
             let pipe = Pipe()
             task.standardInput = pipe

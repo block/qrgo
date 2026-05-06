@@ -31,7 +31,11 @@ class SimulatorHelper {
             simulatorUDID = bootedUDID
         }
 
-        let result = Shell.runCommand("/usr/bin/xcrun", arguments: ["simctl", "openurl", simulatorUDID, urlString], mergeStderr: true)
+        let result = Shell.runCommand(
+            "/usr/bin/xcrun",
+            arguments: ["simctl", "openurl", simulatorUDID, urlString],
+            mergeStderr: true
+        )
         if result.succeeded {
             printSuccess("Opened URL on iOS Simulator")
             return true

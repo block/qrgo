@@ -25,7 +25,8 @@ struct QRGoMain {
     }
 
     static func printVersion() {
-        let result = Shell.runLoginShell("brew info --json=v2 block/tap/qrgo | jq -r '.formulae[0].installed[0].version'")
+        let command = "brew info --json=v2 block/tap/qrgo | jq -r '.formulae[0].installed[0].version'"
+        let result = Shell.runLoginShell(command)
         if result.succeeded, !result.trimmedOutput.isEmpty, result.trimmedOutput != "null" {
             printSuccess("qrgo \(result.trimmedOutput)")
         } else {

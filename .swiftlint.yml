@@ -1,0 +1,24 @@
+included:
+  - Package.swift
+  - Sources
+
+excluded:
+  - .build
+
+line_length:
+  warning: 120
+  error: 160
+
+function_body_length:
+  warning: 80
+  error: 120
+
+file_length:
+  warning: 600
+  error: 800
+
+cyclomatic_complexity:
+  warning: 20
+  error: 30
+
+reporter: xcode
