@@ -61,6 +61,8 @@ struct QRGoMain {
             exit(MenuBarLaunchHelper.launchDetached(arguments: args) ? 0 : 1)
         }
 
+        printTerminalMenuBarTip()
+
         let runner = QRGoRunner(
             configuration: makeTerminalConfiguration(),
             targetSelector: TerminalTargetSelector(),
@@ -70,6 +72,10 @@ struct QRGoMain {
         if !succeeded {
             exit(1)
         }
+    }
+
+    private static func printTerminalMenuBarTip() {
+        printTip("Tip: Use \(Colors.bold)qrgo --menu-bar\(Colors.reset)\(Colors.gray) to launch as a menu bar app.")
     }
 
     private static func makeTerminalConfiguration() -> QRGoRunConfiguration {
