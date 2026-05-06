@@ -1,16 +1,28 @@
+# Keep rules and README.md up to date
+
+When project structure, dependencies, plugins, or guidelines are changed: check if `AGENTS.md` or `README.md` need updates, additions, or removals.
+
 # Building from source
 
 Simply execute this to build:
 
 ```bash
-swift build -c release
+scripts/build.sh release
 ```
 
 The generated binary will be located at `.build/release/qrgo`.
 
-# Keep rules and README.md up to date
+### `xcsift` Output
 
-When project structure, dependencies, plugins, or guidelines are changed: check if `AGENTS.md` or `README.md` need updates, additions, or removals.
+- Build/test/snapshot wrappers pipe `xcodebuild` through `xcsift -f toon -w` when installed; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
+- `summary:` contains indented count fields such as `errors`, `warnings`, `failed_tests`, and `linker_errors`; it can also include `passed_tests`, `build_time`, `test_time`, and `coverage_percent`.
+- Inspect TOON sections such as `errors[n]{file,line,message}`, `warnings[n]{file,line,message,type}`, `failed_tests`, `linker_errors`, `slow_tests`, `flaky_tests`, `build_info`, and `executables` when present.
+- In `errors[n]{file,line,message}` rows, values are ordered as file path, line number, and quoted message.
+- In `warnings[n]{file,line,message,type}` rows, values are ordered as file path, line number, quoted message, and warning type such as `compile` or `swiftui`.
+- `linker_errors` entries include `symbol`, `architecture`, `referenced_from`, `message`, and `conflicting_files`; duplicate symbol failures list object paths in `conflicting_files`.
+- `failed_tests` entries include `test`, `message`, `file`, `line`, and `duration`; `slow_tests` entries include `test` and `duration`; `flaky_tests` is a list of test names.
+- `build_info` can include `targets[n]{name,duration,phases,depends_on}` rows with per-target timing, phases, and dependencies.
+- `executables[n]{path,name,target}` lists built artifacts with their path, name, and target.
 
 # Project structure and module organization
 
@@ -29,9 +41,11 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `SimulatorHelper.swift` - iOS Simulator detection and URL opening via `xcrun simctl`
     - `AndroidEmulatorHelper.swift` - Android device/emulator detection via ADB
 - **Package.swift** - SPM manifest (requires macOS 12+, Swift 5.5+)
+- **scripts/** - Local development scripts:
+  - `build.sh` - Build wrapper that runs `swift build`, auto-installs `xcsift` with Homebrew when missing, and formats output with `xcsift`
 - **.build/** - Build artifacts (gitignored)
 
-## Coding Style & Naming Conventions
+## Coding style & naming conventions
 
 - **Indentation**: 4 spaces (no tabs)
 - **Naming conventions**:
@@ -46,7 +60,7 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
 - **Error handling**: Print colored error messages via `printError()` and exit with non-zero status codes
 - **Shell commands**: Use `Shell.runCommand()` or `Shell.runLoginShell()` static methods; check `ShellResult.succeeded`
 
-## Architecture & Design Patterns
+## Architecture & design patterns
 
 - **Modular helpers**: Each helper file handles a specific concern (screen capture, QR decoding, device management)
 - **Static utility methods**: Helpers use static methods rather than instance methods

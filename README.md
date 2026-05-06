@@ -70,15 +70,14 @@ If you want to build from source:
 ```sh
 git clone https://github.com/block/qrgo.git
 cd qrgo
-swift build -c release
+scripts/build.sh release
 ```
 
-The binary will be located at `.build/release/qrgo`;
+The build script automatically installs [`xcsift`](https://github.com/ldomaradzki/xcsift) with Homebrew if it is not already available on your `PATH`. The binary will be located at `.build/release/qrgo`.
 
-## AI Rules
+## Agent Rules
 
-AI rules are defined within the `ai-rules` directory. If they are updated, run `ai-rules generate` to invalidate rules for all agents. 
-See [block/ai-rules](https://github.com/block/ai-rules) for installation instructions and other documentation.
+Agent rules are defined in [AGENTS.md](AGENTS.md).
 
 ## Contributing
 
