@@ -53,8 +53,6 @@ protocol QRGoTargetSelecting {
 protocol QRGoNotifying {
     /// Whether the runner should surface URL open results outside the opener helpers.
     var reportsDeviceOpenResults: Bool { get }
-    /// Whether successful URL opens should be surfaced; failures are still reported when results are enabled.
-    var reportsSuccessfulDeviceOpenResults: Bool { get }
 
     func error(_ message: String)
     func info(_ message: String)
@@ -64,7 +62,6 @@ protocol QRGoNotifying {
 
 struct TerminalNotifier: QRGoNotifying {
     let reportsDeviceOpenResults = false
-    let reportsSuccessfulDeviceOpenResults = false
 
     func error(_ message: String) {
         printError(message)
@@ -237,34 +234,26 @@ struct QRGoRunner {
         switch action {
         case .ios:
             if opened {
-                if notifier.reportsSuccessfulDeviceOpenResults {
-                    notifier.success("Opened URL on iOS Simulator.")
-                }
+                notifier.success("Opened URL on iOS Simulator.")
             } else {
                 notifier.error("Failed to open URL on iOS Simulator.")
             }
         case .android(let deviceId):
             let deviceName = AndroidEmulatorHelper.getDeviceFriendlyName(deviceId)
             if opened {
-                if notifier.reportsSuccessfulDeviceOpenResults {
-                    notifier.success("Opened URL on \(deviceName).")
-                }
+                notifier.success("Opened URL on \(deviceName).")
             } else {
                 notifier.error("Failed to open URL on \(deviceName).")
             }
         case .copy:
             if opened {
-                if notifier.reportsSuccessfulDeviceOpenResults {
-                    notifier.success("Copied URL to clipboard.")
-                }
+                notifier.success("Copied URL to clipboard.")
             } else {
                 notifier.error("Failed to copy URL to clipboard.")
             }
         case .local:
             if opened {
-                if notifier.reportsSuccessfulDeviceOpenResults {
-                    notifier.success("Opened URL on this computer.")
-                }
+                notifier.success("Opened URL on this computer.")
             } else {
                 notifier.error("Failed to open URL on this computer.")
             }

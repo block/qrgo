@@ -67,6 +67,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            notifier.anchorView = button
         }
         self.statusItem = statusItem
     }
@@ -167,14 +168,18 @@ final class AppKitTargetSelector: QRGoTargetSelecting {
     }
 }
 
+/// Adapts runner notifications to menu-bar logging and transient toast UI.
 @MainActor
 final class MenuBarNotifier: QRGoNotifying {
     let reportsDeviceOpenResults = true
-    let reportsSuccessfulDeviceOpenResults = false
+    /// Status item button used as the popover anchor; owned by the status item.
+    weak var anchorView: NSView?
+
+    private let toastPresenter = MenuBarToastPresenter()
 
     func error(_ message: String) {
         QRGoLogger.menuBarError(message)
-        showAlert(title: "QRGo", message: message, style: .critical)
+        toastPresenter.show(message: message, style: .failure, relativeTo: anchorView)
     }
 
     func info(_ message: String) {
@@ -183,22 +188,142 @@ final class MenuBarNotifier: QRGoNotifying {
 
     func success(_ message: String) {
         QRGoLogger.menuBarInfo(message)
-        showAlert(title: "QRGo", message: message, style: .informational)
+        toastPresenter.show(message: message, style: .success, relativeTo: anchorView)
     }
 
     func warning(_ message: String) {
         QRGoLogger.menuBarWarning(message)
-        showAlert(title: "QRGo", message: message, style: .warning)
+        toastPresenter.show(message: message, style: .warning, relativeTo: anchorView)
+    }
+}
+
+/// Owns the visible toast popover and replaces it when a newer notification arrives.
+@MainActor
+private final class MenuBarToastPresenter: NSObject, NSPopoverDelegate {
+    private var popover: NSPopover?
+    private var dismissalWorkItem: DispatchWorkItem?
+
+    func show(message: String, style: MenuBarToastStyle, relativeTo anchorView: NSView?) {
+        guard let anchorView = anchorView else {
+            NSSound.beep()
+            return
+        }
+
+        dismissalWorkItem?.cancel()
+        // Closing a replaced popover should not run stale delegate cleanup.
+        popover?.delegate = nil
+        popover?.close()
+
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
+        popover.contentSize = MenuBarToastViewController.preferredSize
+        popover.contentViewController = MenuBarToastViewController(message: message, style: style)
+
+        self.popover = popover
+        popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
+
+        let dismissalWorkItem = DispatchWorkItem { [weak self, weak popover] in
+            popover?.close()
+            if self?.popover === popover {
+                self?.popover = nil
+            }
+        }
+        self.dismissalWorkItem = dismissalWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: dismissalWorkItem)
     }
 
-    private func showAlert(title: String, message: String, style: NSAlert.Style) {
-        NSApp.activate(ignoringOtherApps: true)
+    func popoverDidClose(_ notification: Notification) {
+        dismissalWorkItem?.cancel()
+        dismissalWorkItem = nil
+        popover = nil
+    }
+}
 
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = style
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+private enum MenuBarToastStyle {
+    case success
+    case failure
+    case warning
+
+    var iconName: String {
+        switch self {
+        case .success:
+            return "checkmark.circle.fill"
+        case .failure:
+            return "xmark.octagon.fill"
+        case .warning:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var iconColor: NSColor {
+        switch self {
+        case .success:
+            return .systemGreen
+        case .failure:
+            return .systemRed
+        case .warning:
+            return .systemOrange
+        }
+    }
+}
+
+/// Builds compact content for one menu-bar toast popover.
+@MainActor
+private final class MenuBarToastViewController: NSViewController {
+    static let preferredSize = NSSize(width: 280, height: 40)
+
+    private let message: String
+    private let style: MenuBarToastStyle
+
+    init(message: String, style: MenuBarToastStyle) {
+        self.message = message
+        self.style = style
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func loadView() {
+        let container = NSVisualEffectView()
+        container.material = .popover
+        container.blendingMode = .behindWindow
+        container.state = .active
+
+        let iconView = NSImageView()
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+        iconView.image = NSImage(systemSymbolName: style.iconName, accessibilityDescription: nil)
+        iconView.contentTintColor = style.iconColor
+
+        let messageLabel = NSTextField(labelWithString: message)
+        messageLabel.translatesAutoresizingMaskIntoConstraints = false
+        messageLabel.font = .systemFont(ofSize: NSFont.systemFontSize)
+        messageLabel.lineBreakMode = .byTruncatingTail
+        messageLabel.maximumNumberOfLines = 2
+        messageLabel.textColor = .labelColor
+
+        container.addSubview(iconView)
+        container.addSubview(messageLabel)
+
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: Self.preferredSize.width),
+            container.heightAnchor.constraint(equalToConstant: Self.preferredSize.height),
+
+            iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            iconView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 22),
+            iconView.heightAnchor.constraint(equalToConstant: 22),
+
+            messageLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
+            messageLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            messageLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+
+        view = container
     }
 }
