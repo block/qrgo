@@ -17,12 +17,12 @@ enum MenuBarApp {
 
         let delegate = MenuBarAppDelegate(configuration: configuration)
         app.delegate = delegate
-        appDelegate = delegate
 
-        app.run()
+        withExtendedLifetime(delegate) {
+            app.run()
+        }
     }
 
-    private static var appDelegate: MenuBarAppDelegate?
     private static var instanceLock: MenuBarInstanceLock?
 }
 
@@ -65,13 +65,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             }
             button.toolTip = "QRGo"
             button.target = self
-            button.action = #selector(statusItemClicked(_:))
+            button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         self.statusItem = statusItem
     }
 
-    @objc private func statusItemClicked(_ sender: Any?) {
+    @objc private func statusItemClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             showMenu()
         } else {

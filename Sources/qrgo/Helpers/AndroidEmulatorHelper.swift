@@ -33,10 +33,6 @@ class AndroidEmulatorHelper {
         }
     }
 
-    static func getRunningEmulators() -> [String] {
-        return getRunningDevices().filter { $0.contains("emulator-") }
-    }
-
     static func getDeviceFriendlyName(_ deviceId: String) -> String {
         guard let adbPath = findAdbPath() else {
             return "Android Device (\(deviceId))"
