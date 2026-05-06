@@ -1,3 +1,0 @@
-agents: [claude, amp, codex]
-nested_depth: 2
-gitignore: false
