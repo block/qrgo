@@ -38,3 +38,7 @@ jobs:
       - name: "Build (SPM for ${{ matrix.os }}, ${{ matrix.compilation_mode }}) with Xcode ${{ matrix.xcode_version }}"
         run: |
             swift build -c ${{ matrix.compilation_mode }}
+      - name: "Package QRGo.app"
+        if: matrix.compilation_mode == 'release'
+        run: |
+            QRGO_SKIP_BUILD=1 scripts/package-app.sh ${{ matrix.compilation_mode }} "$RUNNER_TEMP/QRGo.app"

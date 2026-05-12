@@ -84,6 +84,7 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
   - `install-xcsift.sh` - Shared wrapper that auto-installs `xcsift` with Homebrew when missing
   - `lint.sh` - SwiftLint wrapper that auto-installs SwiftLint with Homebrew when missing and formats output with `xcsift -f toon -w`
   - `build.sh` - Build wrapper that runs `swift build` and formats output with `xcsift -f toon -w`
+  - `package-app.sh` - Builds a local `QRGo.app` bundle around the SPM executable using the packaging assets
   - `test.sh` - XCTest wrapper that runs `swift test` and formats output with `xcsift -f toon -w`
   - `run-menu-bar.sh` - Builds QRGo, stops any running menu bar agent, starts a detached local menu bar app, and returns control to the terminal
 - **.build/** - Build artifacts (gitignored)
