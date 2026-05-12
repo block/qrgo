@@ -2,7 +2,7 @@
 
 A simple tool that allows you to capture a portion of your screen containing a QR code, decode it, and automatically open the URL in an iOS Simulator or Android emulator.
 
-https://github.com/user-attachments/assets/3fe7a7d3-17a0-4831-a8d7-17e59d591271
+https://github.com/user-attachments/assets/910a4490-c1cd-498b-a726-d51c38ae9920
 
 ## Requirements
 
