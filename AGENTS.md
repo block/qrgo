@@ -20,13 +20,21 @@ Run SwiftLint with:
 scripts/lint.sh
 ```
 
-The lint script auto-installs SwiftLint with Homebrew when missing. `scripts/build.sh` runs this lint step before invoking `swift build`.
+The lint script auto-installs SwiftLint and `xcsift` with Homebrew when missing, then pipes SwiftLint's xcode reporter output through `xcsift -f toon -w`. `scripts/build.sh` only invokes `swift build`; run lint separately.
 
 Always run `scripts/lint.sh` before creating or amending a commit.
 
+# Testing
+
+Run XCTest coverage with:
+
+```bash
+scripts/test.sh
+```
+
 ### `xcsift` Output
 
-- Build/test/snapshot wrappers pipe `xcodebuild` through `xcsift -f toon -w` when installed; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
+- Build, lint, and test wrappers pipe output through `xcsift -f toon -w`; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
 - `summary:` contains indented count fields such as `errors`, `warnings`, `failed_tests`, and `linker_errors`; it can also include `passed_tests`, `build_time`, `test_time`, and `coverage_percent`.
 - Inspect TOON sections such as `errors[n]{file,line,message}`, `warnings[n]{file,line,message,type}`, `failed_tests`, `linker_errors`, `slow_tests`, `flaky_tests`, `build_info`, and `executables` when present.
 - In `errors[n]{file,line,message}` rows, values are ordered as file path, line number, and quoted message.
@@ -40,12 +48,13 @@ Always run `scripts/lint.sh` before creating or amending a commit.
 
 ## Structure
 
-The project uses Swift Package Manager (SPM) with no external dependencies, relying on native macOS frameworks: `ScreenCaptureKit`, `Vision`, `CoreImage`, and `AppKit`.
+The project uses Swift Package Manager (SPM) with no external dependencies, relying on native macOS frameworks: `ScreenCaptureKit`, `Vision`, `CoreImage`, `AppKit`, and `Carbon.HIToolbox`.
 
 - **Sources/qrgo/** - Main source directory
   - **QRGo.swift** - CLI entry point with `@main` struct and command dispatch
   - **QRGoRunner.swift** - Shared QR capture, decode, URL transformation, target selection, and URL opening workflow
   - **MenuBarApp.swift** - AppKit menu bar app, native target chooser, and menu bar notifications/alerts
+  - **MenuBarSettingsWindow.swift** - AppKit settings window and keyboard shortcut recorder for menu bar mode
   - **Helpers/** - Modular helper classes and utilities:
     - `Shell.swift` - Shell command execution (`ShellResult` struct, static methods)
     - `Colors.swift` - ANSI color codes and print helpers (`printError`, `printSuccess`, etc.)
@@ -60,11 +69,18 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `MenuBarInstanceLock.swift` - Single-instance lock for the menu bar agent process
     - `QRGoLogger.swift` - Unified Logging helpers for menu bar logs visible in macOS Console
     - `LoginItemHelper.swift` - LaunchAgent install/remove helpers for starting menu bar mode at login
+    - `KeyboardShortcut.swift` - Keyboard shortcut model, display formatting, and macOS shortcut conflict checks
+    - `GlobalKeyboardShortcutManager.swift` - Carbon global hotkey registration for menu bar scan actions
+    - `MenuBarSettingsStore.swift` - Persisted menu bar settings and shortcut change notifications
+- **Tests/qrgoTests/** - XCTest coverage for shortcut validation and menu bar settings persistence
 - **Package.swift** - SPM manifest (requires macOS 12.3+, Swift 5.5+)
 - **.swiftlint.yml** - SwiftLint configuration
 - **scripts/** - Local development scripts:
-  - `lint.sh` - SwiftLint wrapper that auto-installs SwiftLint with Homebrew when missing
-  - `build.sh` - Build wrapper that runs SwiftLint, auto-installs `xcsift` with Homebrew when missing, runs `swift build`, and formats output with `xcsift`
+  - `install-xcsift.sh` - Shared wrapper that auto-installs `xcsift` with Homebrew when missing
+  - `lint.sh` - SwiftLint wrapper that auto-installs SwiftLint with Homebrew when missing and formats output with `xcsift -f toon -w`
+  - `build.sh` - Build wrapper that runs `swift build` and formats output with `xcsift -f toon -w`
+  - `test.sh` - XCTest wrapper that runs `swift test` and formats output with `xcsift -f toon -w`
+  - `run-menu-bar.sh` - Builds QRGo, stops any running menu bar agent, starts a detached local menu bar app, and returns control to the terminal
 - **.build/** - Build artifacts (gitignored)
 
 ## Coding style & naming conventions

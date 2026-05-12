@@ -10,6 +10,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "qrgo",
-            dependencies: [])
+            dependencies: []),
+        .testTarget(
+            name: "qrgoTests",
+            dependencies: ["qrgo"])
     ]
 )

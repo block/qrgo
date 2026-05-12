@@ -5,6 +5,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 cd "$repo_root"
 
+"$script_dir/install-xcsift.sh"
+
 if ! command -v swiftlint >/dev/null 2>&1; then
     if ! command -v brew >/dev/null 2>&1; then
         echo "SwiftLint is required but Homebrew is not installed." >&2
@@ -19,4 +21,4 @@ if ! command -v swiftlint >/dev/null 2>&1; then
     fi
 fi
 
-swiftlint lint --strict --quiet
+swiftlint lint --strict --reporter xcode 2>&1 | xcsift -f toon -w

@@ -44,12 +44,27 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let configuration: QRGoRunConfiguration
     private let notifier = MenuBarNotifier()
+    private lazy var shortcutManager = GlobalKeyboardShortcutManager { [weak self] in
+        self?.startScan()
+    }
     private var isRunningAction = false
+    private var registeredShortcut: KeyboardShortcut?
+    private var settingsWindowController: MenuBarSettingsWindowController?
     private var statusItem: NSStatusItem?
 
     init(configuration: QRGoRunConfiguration) {
         self.configuration = configuration
         super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(scanShortcutDidChange),
+            name: MenuBarSettingsStore.scanShortcutDidChange,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     func installStatusItem() {
@@ -70,6 +85,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             notifier.anchorView = button
         }
         self.statusItem = statusItem
+        applyScanShortcut()
     }
 
     @objc private func statusItemClicked() {
@@ -118,23 +134,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    @objc private func toggleLoginItem() {
-        QRGoLogger.menuBarInfo("Toggling QRGo launch-at-login setting.")
-
-        let succeeded: Bool
-        if LoginItemHelper.isInstalled {
-            succeeded = LoginItemHelper.uninstall()
-        } else {
-            succeeded = LoginItemHelper.install(loadImmediately: false)
+    @objc private func openSettings() {
+        if settingsWindowController == nil {
+            settingsWindowController = MenuBarSettingsWindowController { [weak self] in
+                self?.registeredShortcut
+            }
         }
-
-        if !succeeded {
-            notifier.error("Could not update the QRGo login item.")
-        }
+        settingsWindowController?.showWindow(nil)
     }
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    @objc private func scanShortcutDidChange() {
+        applyScanShortcut()
     }
 
     private func showMenu() {
@@ -143,14 +157,24 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         // AppKit auto-enables items with valid actions, which would override the last-scan disabled state.
         menu.autoenablesItems = false
-        menu.addItem(NSMenuItem(title: "Scan QR Code", action: #selector(startScan), keyEquivalent: ""))
+        let scanShortcut = MenuBarSettingsStore.scanShortcut
+        let scanItem = NSMenuItem(
+            title: "Scan QR Code",
+            action: #selector(startScan),
+            keyEquivalent: scanShortcut.menuKeyEquivalent
+        )
+        scanItem.keyEquivalentModifierMask = scanShortcut.menuModifierMask
+        scanItem.isEnabled = !isRunningAction
+        menu.addItem(scanItem)
+
         let openLastItem = NSMenuItem(title: "Open Last QR Code", action: #selector(openLastScan), keyEquivalent: "")
         openLastItem.isEnabled = LastScanStore.hasLastScan && !isRunningAction
         menu.addItem(openLastItem)
         menu.addItem(.separator())
 
-        let loginTitle = LoginItemHelper.isInstalled ? "Disable Launch at Login" : "Enable Launch at Login"
-        menu.addItem(NSMenuItem(title: loginTitle, action: #selector(toggleLoginItem), keyEquivalent: ""))
+        let settingsItem = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: "")
+        settingsItem.image = nil
+        menu.addItem(settingsItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit QRGo", action: #selector(quit), keyEquivalent: "q"))
         menu.delegate = self
@@ -162,6 +186,41 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // Attach the menu only while AppKit is tracking this click so normal left-clicks keep scanning.
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
+    }
+
+    private func applyScanShortcut() {
+        let shortcut = MenuBarSettingsStore.scanShortcut
+        if let message = KeyboardShortcutValidator.validationMessage(
+            for: shortcut,
+            currentShortcut: registeredShortcut
+        ) {
+            QRGoLogger.menuBarWarning("Scan keyboard shortcut disabled: \(message)")
+            notifier.warning("Keyboard shortcut disabled. Change it in Settings.")
+            return
+        }
+
+        let previousShortcut = registeredShortcut
+        // Keep the last working hotkey active if a saved setting becomes unavailable at registration time.
+        let status = shortcutManager.register(shortcut: shortcut)
+        guard status == noErr else {
+            restorePreviousShortcut(previousShortcut)
+            QRGoLogger.menuBarWarning("Failed to register scan keyboard shortcut: \(status)")
+            notifier.warning("Keyboard shortcut unavailable. Change it in Settings.")
+            return
+        }
+
+        registeredShortcut = shortcut
+        QRGoLogger.menuBarInfo("Registered scan keyboard shortcut \(shortcut.displayString).")
+    }
+
+    private func restorePreviousShortcut(_ previousShortcut: KeyboardShortcut?) {
+        guard let previousShortcut = previousShortcut else {
+            registeredShortcut = nil
+            return
+        }
+
+        let status = shortcutManager.register(shortcut: previousShortcut)
+        registeredShortcut = status == noErr ? previousShortcut : nil
     }
 
     func menuDidClose(_ menu: NSMenu) {

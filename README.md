@@ -44,6 +44,8 @@ This starts QRGo in the menu bar and returns control to your terminal.
 
 Click the menu bar icon to scan a QR code without launching Terminal. When a decoded URL needs a destination, QRGo shows a native macOS chooser with the same options as the terminal flow plus a copy action: iOS Simulator, running Android devices, copy to clipboard, this computer, or skip.
 
+The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chosen to be easier to press while avoiding common macOS shortcuts. Right-click the menu bar icon and open Settings to record a different shortcut or toggle launch at login.
+
 Menu bar logs are written through macOS Unified Logging and can be viewed in Console by filtering for the `com.block.qrgo` subsystem.
 
 Launch the menu bar app automatically at login:
@@ -58,7 +60,7 @@ Remove the login item:
 qrgo --uninstall-login-item
 ```
 
-You can also right-click the menu bar icon to scan, reopen the last scanned QR code, toggle launch at login, or quit QRGo.
+You can also right-click the menu bar icon to scan, reopen the last scanned QR code, open settings, or quit QRGo.
 
 ### Options
 
@@ -128,7 +130,27 @@ Run SwiftLint directly:
 scripts/lint.sh
 ```
 
-The build script runs SwiftLint before compiling. If SwiftLint is not available on your `PATH`, the lint script automatically installs it with Homebrew.
+The lint script runs SwiftLint's xcode reporter output through [`xcsift -f toon -w`](https://github.com/ldomaradzki/xcsift) so output stays concise for agents. Build and lint are separate invocations. If SwiftLint or xcsift is not available on your `PATH`, the scripts automatically install them with Homebrew.
+
+Run tests:
+
+```sh
+scripts/test.sh
+```
+
+Run the menu bar app from a local build:
+
+```sh
+scripts/run-menu-bar.sh
+```
+
+The runner stops any existing QRGo menu bar app, starts the new local build, and then returns control to the terminal.
+
+Pass `release` as the first argument to run the release build instead:
+
+```sh
+scripts/run-menu-bar.sh release
+```
 
 ## Agent Rules
 
