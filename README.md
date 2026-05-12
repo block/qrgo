@@ -12,7 +12,15 @@ https://github.com/user-attachments/assets/910a4490-c1cd-498b-a726-d51c38ae9920
 
 ## Installation
 
-You can install the QR scanner using Homebrew:
+Install the menu bar app launcher and ensure the CLI is installed using Homebrew:
+
+```sh
+brew install --cask block/tap/qrgo-app
+```
+
+This installs `QRGo.app` in Homebrew's cask app directory (`/Applications` by default) and ensures the `qrgo` CLI is installed through the formula dependency.
+
+If you only want the CLI, install the formula directly:
 
 ```sh
 brew install block/tap/qrgo
@@ -34,13 +42,15 @@ qrgo
 
 ### Menu Bar Mode
 
-Run QRGo as a persistent macOS menu bar app:
+Launch `QRGo.app` from `/Applications` to run QRGo as a persistent macOS menu bar app.
+
+You can also start menu bar mode from the CLI:
 
 ```sh
 qrgo --menu-bar
 ```
 
-This starts QRGo in the menu bar and returns control to your terminal.
+The CLI route starts QRGo in the menu bar and returns control to your terminal.
 
 Click the menu bar icon to scan a QR code without launching Terminal. When a decoded URL needs a destination, QRGo shows a native macOS chooser with the same options as the terminal flow plus a copy action: iOS Simulator, running Android devices, copy to clipboard, this computer, or skip.
 
@@ -150,6 +160,13 @@ Pass `release` as the first argument to run the release build instead:
 
 ```sh
 scripts/run-menu-bar.sh release
+```
+
+Package a local `QRGo.app` bundle:
+
+```sh
+scripts/package-app.sh release
+open .build/release/QRGo.app
 ```
 
 ## Agent Rules

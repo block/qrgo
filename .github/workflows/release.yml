@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   actions: write
+  id-token: write
 
 jobs:
   spm:
@@ -42,6 +43,7 @@ jobs:
 
       - name: Create release tarball
         run: |
+          rm -rf .build/${{ matrix.compilation_mode }}/QRGo.app
           tar -czf qrgo-release.tar.gz -C .build/release .
 
       - name: Generate sha256 for tarball
@@ -49,15 +51,57 @@ jobs:
         run: |
           echo "file_hash=$(shasum -a 256 qrgo-release.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
+      - name: Package QRGo.app
+        env:
+          QRGO_APP_VERSION: ${{ github.ref_name }}
+        run: |
+          QRGO_SKIP_BUILD=1 scripts/package-app.sh ${{ matrix.compilation_mode }} "$RUNNER_TEMP/QRGo.app"
+
+      - name: Codesign and notarize QRGo.app
+        id: codesign
+        uses: block/apple-codesign-action@679535d1ab7c5a7c18e6f9afcba3464512cc3dde # v1.1.0
+        with:
+          osx-codesign-role: ${{ secrets.OSX_CODESIGN_ROLE }}
+          codesign-s3-bucket: ${{ secrets.CODESIGN_S3_BUCKET }}
+          unsigned-artifact-path: ${{ runner.temp }}/QRGo.app
+          artifact-name: qrgo-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Verify and name app release zip
+        id: generate_app_archive
+        env:
+          SIGNED_ARTIFACT_PATH: ${{ steps.codesign.outputs.signed-artifact-path }}
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app_artifact="QRGo-${tag}-arm64.zip"
+
+          extract_dir="$RUNNER_TEMP/signed-qrgo-app"
+          mkdir -p "$extract_dir"
+          ditto -x -k "$SIGNED_ARTIFACT_PATH" "$extract_dir"
+          signed_app="$(find "$extract_dir" -maxdepth 1 -name "QRGo.app" -print -quit)"
+          if [[ -z "$signed_app" ]]; then
+            echo "Signed artifact did not contain QRGo.app." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$signed_app"
+          xcrun stapler validate "$signed_app"
+          spctl -a -vvv --type execute "$signed_app"
+
+          cp "$SIGNED_ARTIFACT_PATH" "$app_artifact"
+          echo "app_artifact=$app_artifact" >> "$GITHUB_OUTPUT"
+          echo "app_hash=$(shasum -a 256 "$app_artifact" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub release
         run: |
           gh release create "$TAG" \
             ./qrgo-release.tar.gz \
+            "./$APP_ARTIFACT" \
             --title "Release $TAG" \
             --generate-notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
+          APP_ARTIFACT: ${{ steps.generate_app_archive.outputs.app_artifact }}
 
       - name: Generate token for tap release
         id: generate_token
@@ -81,3 +125,18 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
           TAG: ${{ github.ref_name }}
           FILE_HASH: ${{ steps.generate_hash.outputs.file_hash }}
+
+      - name: Trigger Cask Bump
+        run: |
+          tag="${TAG#v}"
+          gh workflow run bump-cask.yaml \
+            --repo block/homebrew-tap \
+            -f repo=block/qrgo \
+            -f cask=qrgo-app \
+            -f "tag=$TAG" \
+            -f "artifact_url=https://github.com/block/qrgo/releases/download/$TAG/QRGo-${tag}-arm64.zip" \
+            -f "sha256=$APP_HASH"
+        env:
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          TAG: ${{ github.ref_name }}
+          APP_HASH: ${{ steps.generate_app_archive.outputs.app_hash }}
