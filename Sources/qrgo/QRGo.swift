@@ -41,6 +41,14 @@ struct QRGoMain {
     static func main() async {
         let args = CommandLine.arguments
 
+        if AppBundleLaunchDetector.shouldLaunchMenuBarApp(
+            arguments: args,
+            bundleIdentifier: Bundle.main.bundleIdentifier
+        ) {
+            MenuBarApp.run(configuration: makeMenuBarConfiguration())
+            return
+        }
+
         if args.contains("--help") || args.contains("-h") {
             printHelp()
         }

@@ -56,6 +56,7 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
   - **MenuBarApp.swift** - AppKit menu bar app, native target chooser, and menu bar notifications/alerts
   - **MenuBarSettingsWindow.swift** - AppKit settings window and keyboard shortcut recorder for menu bar mode
   - **Helpers/** - Modular helper classes and utilities:
+    - `AppBundleLaunchDetector.swift` - Detects no-argument launches from the packaged app bundle so `QRGo.app` opens menu bar mode directly
     - `Shell.swift` - Shell command execution (`ShellResult` struct, static methods)
     - `Colors.swift` - ANSI color codes and print helpers (`printError`, `printSuccess`, etc.)
     - `ScreenCaptureHelper.swift` - Screen region capture via `screencapture`
@@ -73,6 +74,10 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `GlobalKeyboardShortcutManager.swift` - Carbon global hotkey registration for menu bar scan actions
     - `MenuBarSettingsStore.swift` - Persisted menu bar settings and shortcut change notifications
 - **Tests/qrgoTests/** - XCTest coverage for shortcut validation and menu bar settings persistence
+- **Packaging/** - App bundle packaging assets:
+  - **QRGo.app/Info.plist** - Template Info.plist used by `scripts/package-app.sh`
+  - **QRGo.app/QRGo.icns** - Exported app icon copied into the bundle resources
+  - **QRGo.icon/** - Icon Composer source asset for the app icon
 - **Package.swift** - SPM manifest (requires macOS 12.3+, Swift 5.5+)
 - **.swiftlint.yml** - SwiftLint configuration
 - **scripts/** - Local development scripts:
