@@ -1,19 +1,12 @@
 import Foundation
 
 class AndroidEmulatorHelper {
-    private static var _cachedAdbPath: String?
-    private static var _adbPathChecked = false
-
     static func findAdbPath() -> String? {
         if _adbPathChecked {
             return _cachedAdbPath
         }
 
-        let result = Shell.runLoginShell("which adb")
-        if result.succeeded, !result.trimmedOutput.isEmpty {
-            _cachedAdbPath = result.trimmedOutput
-        }
-
+        _cachedAdbPath = resolveAdbPath()
         _adbPathChecked = true
         return _cachedAdbPath
     }
@@ -27,9 +20,15 @@ class AndroidEmulatorHelper {
         let result = Shell.runCommand(adbPath, arguments: ["devices"])
         guard result.succeeded else { return [] }
 
-        return result.stdout.components(separatedBy: .newlines).compactMap { line in
-            let components = line.components(separatedBy: .whitespaces)
-            return (components.count >= 2 && components[1] == "device") ? components[0] : nil
+        return parseRunningDeviceIds(fromAdbDevicesOutput: result.stdout)
+    }
+
+    static func parseRunningDeviceIds(fromAdbDevicesOutput output: String) -> [String] {
+        return output.components(separatedBy: .newlines).compactMap { line in
+            let components = line.split { character in
+                character == " " || character == "\t"
+            }
+            return components.count >= 2 && components[1] == "device" ? String(components[0]) : nil
         }
     }
 
@@ -80,48 +79,6 @@ class AndroidEmulatorHelper {
         }
 
         return displayName
-    }
-
-    private static func getDeviceProperties(deviceId: String, adbPath: String) -> [String: String] {
-        let properties = [
-            "ro.product.model",
-            "ro.product.manufacturer",
-            "ro.build.version.sdk",
-            "ro.kernel.qemu",
-            "ro.boot.qemu.avd_name"
-        ]
-
-        let shellCommand = properties.map { "getprop \($0)" }.joined(separator: " && echo '|||' && ")
-        let result = Shell.runCommand(adbPath, arguments: ["-s", deviceId, "shell", shellCommand], suppressStderr: true)
-        guard result.succeeded else { return [:] }
-
-        var props: [String: String] = [:]
-        let values = result.stdout.components(separatedBy: "|||").map {
-            $0.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        for (index, prop) in properties.enumerated() where index < values.count {
-            props[prop] = values[index]
-        }
-        return props
-    }
-
-    private static func validateAndSanitizeUrl(_ urlString: String) -> String? {
-        switch sanitizeUrlForAndroidShell(urlString) {
-        case .success(let safe):
-            return safe
-        case .failure(.malformed):
-            printError("Malformed or unsupported URL, cannot open on Android device.")
-            return nil
-        case .failure(.disallowedScheme(let scheme)):
-            printError(
-                "URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. " +
-                    "Only http, https, and cashme are permitted."
-            )
-            return nil
-        case .failure(.dangerousCharacters):
-            printError("URL contains characters that are not permitted for Android shell.")
-            return nil
-        }
     }
 
     @discardableResult
@@ -182,6 +139,108 @@ class AndroidEmulatorHelper {
         } else {
             printSuccess("\nOpened URL on \(deviceName)")
             return true
+        }
+    }
+
+    private static var _cachedAdbPath: String?
+    private static var _adbPathChecked = false
+
+    private static func resolveAdbPath() -> String? {
+        let result = Shell.runLoginShell("command -v adb")
+        if result.succeeded,
+           let adbPath = firstExecutablePath(in: result.stdout) {
+            return adbPath
+        }
+
+        for path in fallbackAdbPaths() where FileManager.default.isExecutableFile(atPath: path) {
+            return path
+        }
+
+        return nil
+    }
+
+    private static func firstExecutablePath(in output: String) -> String? {
+        for line in output.components(separatedBy: .newlines) {
+            let path = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        return nil
+    }
+
+    private static func fallbackAdbPaths(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String] {
+        var paths: [String] = []
+
+        for key in ["ANDROID_HOME", "ANDROID_SDK_ROOT"] {
+            guard let sdkRoot = environment[key], !sdkRoot.isEmpty else {
+                continue
+            }
+            paths.append(adbPath(inAndroidSdkRoot: URL(fileURLWithPath: sdkRoot)))
+        }
+
+        paths.append(adbPath(inAndroidSdkRoot: homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Android", isDirectory: true)
+            .appendingPathComponent("sdk", isDirectory: true)))
+        paths.append("/opt/homebrew/bin/adb")
+        paths.append("/usr/local/bin/adb")
+
+        var seenPaths = Set<String>()
+        return paths.filter { path in
+            seenPaths.insert(path).inserted
+        }
+    }
+
+    private static func adbPath(inAndroidSdkRoot sdkRoot: URL) -> String {
+        return sdkRoot
+            .appendingPathComponent("platform-tools", isDirectory: true)
+            .appendingPathComponent("adb", isDirectory: false)
+            .path
+    }
+
+    private static func getDeviceProperties(deviceId: String, adbPath: String) -> [String: String] {
+        let properties = [
+            "ro.product.model",
+            "ro.product.manufacturer",
+            "ro.build.version.sdk",
+            "ro.kernel.qemu",
+            "ro.boot.qemu.avd_name"
+        ]
+
+        let shellCommand = properties.map { "getprop \($0)" }.joined(separator: " && echo '|||' && ")
+        let result = Shell.runCommand(adbPath, arguments: ["-s", deviceId, "shell", shellCommand], suppressStderr: true)
+        guard result.succeeded else { return [:] }
+
+        var props: [String: String] = [:]
+        let values = result.stdout.components(separatedBy: "|||").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        for (index, prop) in properties.enumerated() where index < values.count {
+            props[prop] = values[index]
+        }
+        return props
+    }
+
+    private static func validateAndSanitizeUrl(_ urlString: String) -> String? {
+        switch sanitizeUrlForAndroidShell(urlString) {
+        case .success(let safe):
+            return safe
+        case .failure(.malformed):
+            printError("Malformed or unsupported URL, cannot open on Android device.")
+            return nil
+        case .failure(.disallowedScheme(let scheme)):
+            printError(
+                "URL scheme '\(scheme.isEmpty ? "(none)" : scheme)' is not allowed. " +
+                    "Only http, https, and cashme are permitted."
+            )
+            return nil
+        case .failure(.dangerousCharacters):
+            printError("URL contains characters that are not permitted for Android shell.")
+            return nil
         }
     }
 }
