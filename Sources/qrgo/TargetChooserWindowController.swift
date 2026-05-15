@@ -4,8 +4,12 @@ import AppKit
 final class TargetChooserWindowController: NSWindowController, NSWindowDelegate {
     private var selectedAction: TargetAction?
 
-    init(urlString: String, options: [TargetOption]) {
-        let viewController = TargetChooserViewController(urlString: urlString, options: options)
+    init(urlString: String, options: [TargetOption], footerWarning: String? = nil) {
+        let viewController = TargetChooserViewController(
+            urlString: urlString,
+            options: options,
+            footerWarning: footerWarning
+        )
         let window = NSWindow(contentViewController: viewController)
         window.title = "Open QR Code"
         MenuBarModalWindow.configure(window)
@@ -62,17 +66,21 @@ private final class TargetChooserViewController: NSViewController {
     private static let urlHeight: CGFloat = 48
     private static let urlTopPadding: CGFloat = 16
     private static let urlButtonSpacing: CGFloat = 6
+    private static let footerTopSpacing: CGFloat = 14
+    private static let footerHeight: CGFloat = 34
     private static let bottomPadding: CGFloat = 24
 
     private let urlString: String
     private let options: [TargetOption]
+    private let footerWarning: String?
     private var choiceButtons: [NSButton] = []
     private var isSelectingTarget = false
 
-    init(urlString: String, options: [TargetOption]) {
+    init(urlString: String, options: [TargetOption], footerWarning: String?) {
         self.urlString = urlString
         self.options = options
-        contentSize = Self.makeContentSize(optionCount: options.count)
+        self.footerWarning = footerWarning
+        contentSize = Self.makeContentSize(optionCount: options.count, hasFooter: footerWarning != nil)
         super.init(nibName: nil, bundle: nil)
         preferredContentSize = contentSize
     }
@@ -112,10 +120,28 @@ private final class TargetChooserViewController: NSViewController {
             button.widthAnchor.constraint(equalTo: buttonStack.widthAnchor).isActive = true
         }
 
+        let footerLabel: NSTextField?
+        if let footerWarning = footerWarning {
+            let label = NSTextField(wrappingLabelWithString: footerWarning)
+            label.translatesAutoresizingMaskIntoConstraints = false
+            label.alignment = .center
+            label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            label.lineBreakMode = .byWordWrapping
+            label.maximumNumberOfLines = 2
+            label.textColor = .secondaryLabelColor
+            label.setAccessibilityLabel(footerWarning)
+            footerLabel = label
+        } else {
+            footerLabel = nil
+        }
+
         container.addSubview(urlLabel)
         container.addSubview(buttonStack)
+        if let footerLabel = footerLabel {
+            container.addSubview(footerLabel)
+        }
 
-        NSLayoutConstraint.activate([
+        var constraints = [
             container.widthAnchor.constraint(equalToConstant: contentSize.width),
             container.heightAnchor.constraint(equalToConstant: contentSize.height),
 
@@ -126,17 +152,39 @@ private final class TargetChooserViewController: NSViewController {
 
             buttonStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Self.horizontalPadding),
             buttonStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Self.horizontalPadding),
-            buttonStack.topAnchor.constraint(equalTo: urlLabel.bottomAnchor, constant: Self.urlButtonSpacing),
-            buttonStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Self.bottomPadding)
-        ])
+            buttonStack.topAnchor.constraint(equalTo: urlLabel.bottomAnchor, constant: Self.urlButtonSpacing)
+        ]
+
+        if let footerLabel = footerLabel {
+            constraints.append(contentsOf: [
+                buttonStack.bottomAnchor.constraint(equalTo: footerLabel.topAnchor, constant: -Self.footerTopSpacing),
+                footerLabel.leadingAnchor.constraint(
+                    equalTo: container.leadingAnchor,
+                    constant: Self.horizontalPadding
+                ),
+                footerLabel.trailingAnchor.constraint(
+                    equalTo: container.trailingAnchor,
+                    constant: -Self.horizontalPadding
+                ),
+                footerLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Self.bottomPadding),
+                footerLabel.heightAnchor.constraint(equalToConstant: Self.footerHeight)
+            ])
+        } else {
+            constraints.append(
+                buttonStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Self.bottomPadding)
+            )
+        }
+
+        NSLayoutConstraint.activate(constraints)
 
         view = container
     }
 
-    private static func makeContentSize(optionCount: Int) -> NSSize {
+    private static func makeContentSize(optionCount: Int, hasFooter: Bool) -> NSSize {
         let verticalPadding = urlTopPadding + urlHeight + urlButtonSpacing + bottomPadding
         let buttonStackHeight = CGFloat(optionCount) * buttonHeight + CGFloat(max(0, optionCount - 1)) * buttonSpacing
-        return NSSize(width: 440, height: verticalPadding + buttonStackHeight)
+        let footerAreaHeight = hasFooter ? footerTopSpacing + Self.footerHeight : 0
+        return NSSize(width: 440, height: verticalPadding + buttonStackHeight + footerAreaHeight)
     }
 
     private func makeChoiceButton(for option: TargetOption, index: Int) -> NSButton {

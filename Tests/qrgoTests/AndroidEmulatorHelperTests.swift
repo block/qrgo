@@ -29,6 +29,21 @@ final class AndroidEmulatorHelperTests: XCTestCase {
         )
     }
 
+    func testParseRunningDeviceIdsIgnoresAdbDaemonStartupLines() {
+        let output = """
+        * daemon not running; starting now at tcp:5037
+        * daemon started successfully
+        List of devices attached
+        emulator-5554\tdevice
+
+        """
+
+        XCTAssertEqual(
+            AndroidEmulatorHelper.parseRunningDeviceIds(fromAdbDevicesOutput: output),
+            ["emulator-5554"]
+        )
+    }
+
     func testParseRunningDeviceIdsIgnoresUnavailableDevices() {
         let output = """
         List of devices attached

@@ -45,9 +45,14 @@ struct TargetOption {
     let action: TargetAction
 }
 
+struct AvailableTargetOptions {
+    let options: [TargetOption]
+    let footerWarning: String?
+}
+
 @MainActor
 protocol QRGoTargetSelecting {
-    func selectTarget(for urlString: String, from options: [TargetOption]) -> TargetAction?
+    func selectTarget(for urlString: String, from options: [TargetOption], footerWarning: String?) -> TargetAction?
 }
 
 @MainActor
@@ -82,7 +87,7 @@ struct TerminalNotifier: QRGoNotifying {
 }
 
 struct TerminalTargetSelector: QRGoTargetSelecting {
-    func selectTarget(for urlString: String, from options: [TargetOption]) -> TargetAction? {
+    func selectTarget(for urlString: String, from options: [TargetOption], footerWarning: String?) -> TargetAction? {
         let selectedAction: TargetAction
 
         if DeviceMemory.shouldUseLast,
@@ -99,6 +104,9 @@ struct TerminalTargetSelector: QRGoTargetSelecting {
             if let lastChoice = DeviceMemory.lastChoice,
                let lastIndex = options.firstIndex(where: { $0.action.key == lastChoice }) {
                 printInfo("\n💡 Press 'r' to use previous device (\(options[lastIndex].displayName))")
+            }
+            if let footerWarning = footerWarning {
+                printTip("\n\(footerWarning)")
             }
             print("")
 
@@ -243,8 +251,12 @@ struct QRGoRunner {
     }
 
     private func openUrlInAvailableTarget(_ urlString: String) -> Bool {
-        let options = makeAvailableTargetOptions(includesCopyOption: configuration.showsCopyTargetOption)
-        guard let selectedAction = targetSelector.selectTarget(for: urlString, from: options) else {
+        let availableTargets = makeAvailableTargetOptions(includesCopyOption: configuration.showsCopyTargetOption)
+        guard let selectedAction = targetSelector.selectTarget(
+            for: urlString,
+            from: availableTargets.options,
+            footerWarning: availableTargets.footerWarning
+        ) else {
             return false
         }
 
@@ -468,7 +480,7 @@ func openUrlOnDevice(_ urlString: String, deviceId: String) -> Bool {
     }
 }
 
-func makeAvailableTargetOptions(includesCopyOption: Bool) -> [TargetOption] {
+func makeAvailableTargetOptions(includesCopyOption: Bool) -> AvailableTargetOptions {
     var availableOptions: [TargetOption] = []
 
     if let bootedUDID = SimulatorHelper.getBootedSimulator() {
@@ -479,7 +491,8 @@ func makeAvailableTargetOptions(includesCopyOption: Bool) -> [TargetOption] {
         ))
     }
 
-    for device in AndroidEmulatorHelper.getRunningDevices() {
+    let androidDiscovery = AndroidEmulatorHelper.getRunningDeviceDiscovery()
+    for device in androidDiscovery.devices {
         let friendlyName = AndroidEmulatorHelper.getDeviceFriendlyName(device)
         availableOptions.append(TargetOption(
             displayName: friendlyName,
@@ -505,7 +518,7 @@ func makeAvailableTargetOptions(includesCopyOption: Bool) -> [TargetOption] {
         systemSymbolName: "xmark.circle",
         action: .skip
     ))
-    return availableOptions
+    return AvailableTargetOptions(options: availableOptions, footerWarning: androidDiscovery.toolingWarning)
 }
 
 func openUrl(_ urlString: String, action: TargetAction) -> Bool {

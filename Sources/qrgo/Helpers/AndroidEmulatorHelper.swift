@@ -1,26 +1,50 @@
 import Foundation
 
+struct AndroidDeviceDiscovery {
+    let devices: [String]
+    let toolingWarning: String?
+}
+
 class AndroidEmulatorHelper {
     static func findAdbPath() -> String? {
-        if _adbPathChecked {
-            return _cachedAdbPath
+        if let cachedAdbPath = _cachedAdbPath {
+            return cachedAdbPath
         }
 
-        _cachedAdbPath = resolveAdbPath()
-        _adbPathChecked = true
-        return _cachedAdbPath
+        guard let adbPath = resolveAdbPath() else {
+            QRGoLogger.menuBarWarning("ADB path resolution failed.")
+            return nil
+        }
+
+        QRGoLogger.menuBarInfo("Resolved ADB path: \(adbPath)")
+        _cachedAdbPath = adbPath
+        return adbPath
     }
 
     static func getRunningDevices() -> [String] {
+        return getRunningDeviceDiscovery().devices
+    }
+
+    static func getRunningDeviceDiscovery() -> AndroidDeviceDiscovery {
         guard let adbPath = findAdbPath() else {
             printError("ADB not found. Please install Android SDK or ensure ADB is in your PATH.")
-            return []
+            return AndroidDeviceDiscovery(
+                devices: [],
+                toolingWarning: "Android tooling not found. QRGo could not find adb from this app session."
+            )
         }
 
-        let result = Shell.runCommand(adbPath, arguments: ["devices"])
-        guard result.succeeded else { return [] }
+        let result = Shell.runCommand(adbPath, arguments: ["devices"], mergeStderr: true)
+        guard result.succeeded else {
+            logEmptyAdbDevicesResult(result)
+            return AndroidDeviceDiscovery(devices: [], toolingWarning: nil)
+        }
 
-        return parseRunningDeviceIds(fromAdbDevicesOutput: result.stdout)
+        let devices = parseRunningDeviceIds(fromAdbDevicesOutput: result.stdout)
+        if devices.isEmpty {
+            logEmptyAdbDevicesResult(result)
+        }
+        return AndroidDeviceDiscovery(devices: devices, toolingWarning: nil)
     }
 
     static func parseRunningDeviceIds(fromAdbDevicesOutput output: String) -> [String] {
@@ -143,7 +167,6 @@ class AndroidEmulatorHelper {
     }
 
     private static var _cachedAdbPath: String?
-    private static var _adbPathChecked = false
 
     private static func resolveAdbPath() -> String? {
         let result = Shell.runLoginShell("command -v adb")
@@ -157,6 +180,14 @@ class AndroidEmulatorHelper {
         }
 
         return nil
+    }
+
+    private static func logEmptyAdbDevicesResult(_ result: ShellResult) {
+        let output = result.trimmedOutput.isEmpty ? "(empty)" : result.trimmedOutput
+        QRGoLogger.menuBarWarning(
+            "ADB devices returned no usable Android devices. " +
+                "exitCode=\(result.exitCode), timedOut=\(result.timedOut), output=\(output)"
+        )
     }
 
     private static func firstExecutablePath(in output: String) -> String? {

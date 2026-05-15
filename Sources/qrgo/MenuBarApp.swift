@@ -309,9 +309,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
 @MainActor
 final class AppKitTargetSelector: QRGoTargetSelecting {
-    func selectTarget(for urlString: String, from options: [TargetOption]) -> TargetAction? {
+    func selectTarget(for urlString: String, from options: [TargetOption], footerWarning: String?) -> TargetAction? {
         NSApp.activate(ignoringOtherApps: true)
-        let chooser = TargetChooserWindowController(urlString: urlString, options: options)
+        let chooser = TargetChooserWindowController(
+            urlString: urlString,
+            options: options,
+            footerWarning: footerWarning
+        )
         return chooser.showModal()
     }
 }
