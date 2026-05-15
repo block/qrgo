@@ -53,8 +53,9 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
 - **Sources/qrgo/** - Main source directory
   - **QRGo.swift** - CLI entry point with `@main` struct and command dispatch
   - **QRGoRunner.swift** - Shared QR capture, decode, URL transformation, target selection, and URL opening workflow
-  - **MenuBarApp.swift** - AppKit menu bar app, native target chooser, and menu bar notifications/alerts
+  - **MenuBarApp.swift** - AppKit menu bar app, target selection wiring, and menu bar notifications/alerts
   - **MenuBarSettingsWindow.swift** - AppKit settings window and keyboard shortcut recorder for menu bar mode
+  - **TargetChooserWindowController.swift** - AppKit modal target chooser shown from menu bar scans
   - **Helpers/** - Modular helper classes and utilities:
     - `AppBundleLaunchDetector.swift` - Detects no-argument launches from the packaged app bundle so `QRGo.app` opens menu bar mode directly
     - `Shell.swift` - Shell command execution (`ShellResult` struct, static methods)

@@ -232,22 +232,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 final class AppKitTargetSelector: QRGoTargetSelecting {
     func selectTarget(for urlString: String, from options: [TargetOption]) -> TargetAction? {
         NSApp.activate(ignoringOtherApps: true)
-
-        let alert = NSAlert()
-        alert.messageText = "Open QR Code"
-        alert.informativeText = urlString
-        alert.alertStyle = .informational
-
-        for option in options {
-            alert.addButton(withTitle: option.displayName)
-        }
-
-        let response = alert.runModal()
-        let selectedIndex = response.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
-        guard selectedIndex >= 0 && selectedIndex < options.count else {
-            return nil
-        }
-        return options[selectedIndex].action
+        let chooser = TargetChooserWindowController(urlString: urlString, options: options)
+        return chooser.showModal()
     }
 }
 

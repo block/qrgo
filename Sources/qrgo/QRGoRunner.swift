@@ -17,7 +17,7 @@ enum DeviceType {
 }
 
 enum TargetAction: Equatable {
-    case ios
+    case ios(udid: String)
     case android(deviceId: String)
     case copy
     case local
@@ -41,6 +41,7 @@ enum TargetAction: Equatable {
 
 struct TargetOption {
     let displayName: String
+    let systemSymbolName: String
     let action: TargetAction
 }
 
@@ -312,7 +313,7 @@ struct QRGoRunner {
     private func targetAction(for deviceId: String) -> TargetAction {
         switch detectDeviceType(deviceId) {
         case .ios:
-            return .ios
+            return .ios(udid: deviceId)
         case .android, .unknown:
             return .android(deviceId: deviceId)
         }
@@ -470,27 +471,47 @@ func openUrlOnDevice(_ urlString: String, deviceId: String) -> Bool {
 func makeAvailableTargetOptions(includesCopyOption: Bool) -> [TargetOption] {
     var availableOptions: [TargetOption] = []
 
-    if SimulatorHelper.getBootedSimulator() != nil {
-        availableOptions.append(TargetOption(displayName: "📱 iOS Simulator", action: .ios))
+    if let bootedUDID = SimulatorHelper.getBootedSimulator() {
+        availableOptions.append(TargetOption(
+            displayName: "iOS Simulator",
+            systemSymbolName: "iphone",
+            action: .ios(udid: bootedUDID)
+        ))
     }
 
     for device in AndroidEmulatorHelper.getRunningDevices() {
         let friendlyName = AndroidEmulatorHelper.getDeviceFriendlyName(device)
-        availableOptions.append(TargetOption(displayName: "📱 \(friendlyName)", action: .android(deviceId: device)))
+        availableOptions.append(TargetOption(
+            displayName: friendlyName,
+            systemSymbolName: "candybarphone",
+            action: .android(deviceId: device)
+        ))
     }
 
     if includesCopyOption {
-        availableOptions.append(TargetOption(displayName: "📋 Copy to clipboard", action: .copy))
+        availableOptions.append(TargetOption(
+            displayName: "Copy to clipboard",
+            systemSymbolName: "doc.on.doc",
+            action: .copy
+        ))
     }
-    availableOptions.append(TargetOption(displayName: "💻 Open on this computer", action: .local))
-    availableOptions.append(TargetOption(displayName: "⏭️ Skip (don't open)", action: .skip))
+    availableOptions.append(TargetOption(
+        displayName: "Open on this computer",
+        systemSymbolName: "desktopcomputer",
+        action: .local
+    ))
+    availableOptions.append(TargetOption(
+        displayName: "Skip (don't open)",
+        systemSymbolName: "xmark.circle",
+        action: .skip
+    ))
     return availableOptions
 }
 
 func openUrl(_ urlString: String, action: TargetAction) -> Bool {
     switch action {
-    case .ios:
-        return SimulatorHelper.openUrl(urlString)
+    case .ios(let udid):
+        return SimulatorHelper.openUrl(urlString, udid: udid)
     case .android(let deviceId):
         return AndroidEmulatorHelper.openUrl(urlString, deviceId: deviceId)
     case .copy:
