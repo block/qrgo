@@ -86,6 +86,34 @@ final class HomebrewUpdateServiceTests: XCTestCase {
         XCTAssertEqual(error.message, "Could not check for QRGo updates.")
     }
 
+    func testOutdatedCommandNonZeroWithQRGoCaskReturnsAvailableUpdate() async {
+        let commandRunner = FakeUpdateCommandRunner(results: [
+            ShellResult(exitCode: 0, stdout: "", stderr: "", timedOut: false),
+            ShellResult(
+                exitCode: 1,
+                stdout: """
+                {
+                  "formulae": [],
+                  "casks": [
+                    {
+                      "name": "qrgo-app",
+                      "installed_versions": ["1.3.0"],
+                      "current_version": "1.3.1"
+                    }
+                  ]
+                }
+                """,
+                stderr: "",
+                timedOut: false
+            )
+        ])
+        let service = HomebrewUpdateService(commandRunner: commandRunner)
+
+        let result = await service.checkForUpdate()
+
+        XCTAssertEqual(result, .available(MenuBarUpdate(installedVersion: "1.3.0", currentVersion: "1.3.1")))
+    }
+
     func testUninstalledCaskCheckReturnsUnavailable() async {
         let commandRunner = FakeUpdateCommandRunner(results: [
             ShellResult(exitCode: 0, stdout: "", stderr: "", timedOut: false),

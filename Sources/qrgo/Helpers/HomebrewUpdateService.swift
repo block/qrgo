@@ -14,6 +14,15 @@ enum MenuBarUpdateCheckResult: Equatable {
     case failed(MenuBarUpdateCommandError)
 }
 
+private extension MenuBarUpdateCheckResult {
+    var hasAvailableUpdate: Bool {
+        guard case .available = self else {
+            return false
+        }
+        return true
+    }
+}
+
 /// Result of a user-initiated Homebrew cask upgrade.
 enum MenuBarUpdateInstallResult: Equatable {
     case installed
@@ -95,21 +104,23 @@ struct HomebrewUpdateService: MenuBarUpdateServicing {
         if let unavailableMessage = unavailableMessage(from: outdatedResult) {
             return .unavailable(unavailableMessage)
         }
-        guard outdatedResult.succeeded else {
-            return .failed(commandError(
-                message: "Could not check for QRGo updates.",
-                result: outdatedResult
-            ))
-        }
 
         do {
-            return try Self.checkResult(fromOutdatedJSON: outdatedResult.stdout)
+            let checkResult = try Self.checkResult(fromOutdatedJSON: outdatedResult.stdout)
+            if outdatedResult.succeeded || checkResult.hasAvailableUpdate {
+                return checkResult
+            }
         } catch {
             return .failed(commandError(
                 message: "Homebrew returned invalid update information.",
                 result: outdatedResult
             ))
         }
+
+        return .failed(commandError(
+            message: "Could not check for QRGo updates.",
+            result: outdatedResult
+        ))
     }
 
     func installUpdate() async -> MenuBarUpdateInstallResult {
