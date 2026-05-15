@@ -8,13 +8,7 @@ final class TargetChooserWindowController: NSWindowController, NSWindowDelegate 
         let viewController = TargetChooserViewController(urlString: urlString, options: options)
         let window = NSWindow(contentViewController: viewController)
         window.title = "Open QR Code"
-        window.styleMask = [.titled, .closable]
-        window.isMovable = true
-        window.isMovableByWindowBackground = false
-        window.isReleasedWhenClosed = false
-        window.level = .modalPanel
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        window.standardWindowButton(.zoomButton)?.isHidden = true
+        MenuBarModalWindow.configure(window)
         window.contentMinSize = viewController.contentSize
         window.contentMaxSize = viewController.contentSize
         window.setContentSize(viewController.contentSize)
@@ -37,8 +31,7 @@ final class TargetChooserWindowController: NSWindowController, NSWindowDelegate 
             return nil
         }
 
-        window.center()
-        window.makeKeyAndOrderFront(nil)
+        MenuBarModalWindow.show(window)
         NSApp.runModal(for: window)
         window.orderOut(nil)
         return selectedAction

@@ -32,6 +32,19 @@ Run XCTest coverage with:
 scripts/test.sh
 ```
 
+## Menu bar update dry runs
+
+Use dry-run mode when changing or reviewing the menu bar update toast, install modal, retry/error states, or restart copy. Dry-run mode must not invoke Homebrew and is controlled by environment variables:
+
+```bash
+QRGO_UPDATE_DRY_RUN=available scripts/run-menu-bar.sh
+QRGO_UPDATE_DRY_RUN=current scripts/run-menu-bar.sh
+QRGO_UPDATE_DRY_RUN=install-error scripts/run-menu-bar.sh
+QRGO_UPDATE_DRY_RUN=check-error scripts/run-menu-bar.sh
+```
+
+Use `QRGO_UPDATE_DRY_RUN=available` to validate the update-available toast, Later dismissal, install progress state, success state, and restart action. Use `QRGO_UPDATE_DRY_RUN=current` to validate the no-update path. Use `QRGO_UPDATE_DRY_RUN=install-error` to validate install failure and retry. Use `QRGO_UPDATE_DRY_RUN=check-error` to validate background check failure logging. Adjust artificial delays with `QRGO_UPDATE_CHECK_DELAY_SECONDS` and `QRGO_UPDATE_INSTALL_DELAY_SECONDS`.
+
 ### `xcsift` Output
 
 - Build, lint, and test wrappers pipe output through `xcsift -f toon -w`; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
@@ -54,6 +67,8 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
   - **QRGo.swift** - CLI entry point with `@main` struct and command dispatch
   - **QRGoRunner.swift** - Shared QR capture, decode, URL transformation, target selection, and URL opening workflow
   - **MenuBarApp.swift** - AppKit menu bar app, target selection wiring, and menu bar notifications/alerts
+  - **MenuBarUpdateCoordinator.swift** - Menu bar update check scheduling, visible-session gating, and update prompt coordination
+  - **MenuBarUpdateInstallWindow.swift** - AppKit modal window for Homebrew update installation progress, retry, and restart prompt
   - **MenuBarSettingsWindow.swift** - AppKit settings window and keyboard shortcut recorder for menu bar mode
   - **TargetChooserWindowController.swift** - AppKit modal target chooser shown from menu bar scans
   - **Helpers/** - Modular helper classes and utilities:
@@ -68,13 +83,16 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `AndroidEmulatorHelper.swift` - Android device/emulator detection via ADB
     - `ExecutablePathHelper.swift` - Current executable path resolution for launchers and login items
     - `MenuBarLaunchHelper.swift` - Non-blocking menu bar launcher for the public `--menu-bar` flag
+    - `MenuBarRelaunchHelper.swift` - Detached relaunch scheduling after menu bar updates
     - `MenuBarInstanceLock.swift` - Single-instance lock for the menu bar agent process
+    - `MenuBarModalWindow.swift` - Shared modal window configuration for menu bar AppKit dialogs
     - `QRGoLogger.swift` - Unified Logging helpers for menu bar logs visible in macOS Console
     - `LoginItemHelper.swift` - LaunchAgent install/remove helpers for starting menu bar mode at login
     - `KeyboardShortcut.swift` - Keyboard shortcut model, display formatting, and macOS shortcut conflict checks
     - `GlobalKeyboardShortcutManager.swift` - Carbon global hotkey registration for menu bar scan actions
     - `MenuBarSettingsStore.swift` - Persisted menu bar settings and shortcut change notifications
-- **Tests/qrgoTests/** - XCTest coverage for shortcut validation and menu bar settings persistence
+    - `HomebrewUpdateService.swift` - Production and dry-run Homebrew update check/install services for menu bar mode
+- **Tests/qrgoTests/** - XCTest coverage for shortcut validation, menu bar settings persistence, and menu bar update checks
 - **Packaging/** - App bundle packaging assets:
   - **QRGo.app/Info.plist** - Template Info.plist used by `scripts/package-app.sh`
   - **QRGo.app/QRGo.icns** - Exported app icon copied into the bundle resources

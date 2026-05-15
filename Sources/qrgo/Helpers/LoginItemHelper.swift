@@ -8,6 +8,28 @@ enum LoginItemHelper {
         return FileManager.default.fileExists(atPath: launchAgentURL.path)
     }
 
+    /// Returns true when QRGo's LaunchAgent currently owns this process.
+    ///
+    /// Homebrew cask upgrades can unload launch-at-login jobs. Detecting that
+    /// case lets the update flow avoid closing the menu bar process before the
+    /// install modal can report success or failure.
+    static var isManagingCurrentProcess: Bool {
+        let result = Shell.runCommand(
+            "/bin/launchctl",
+            arguments: ["list", label],
+            suppressStderr: true
+        )
+        guard result.succeeded else {
+            return false
+        }
+        return launchctlListOutput(result.stdout, managesPID: getpid())
+    }
+
+    static func launchctlListOutput(_ output: String, managesPID pid: pid_t) -> Bool {
+        let pattern = #"(?m)^\s*"?PID"?\s*=\s*\#(pid);"#
+        return output.range(of: pattern, options: .regularExpression) != nil
+    }
+
     /// Installs QRGo's user LaunchAgent and optionally bootstraps it immediately.
     ///
     /// If immediate bootstrap fails, the previous plist is restored and

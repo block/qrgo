@@ -50,6 +50,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var isRunningAction = false
     private var registeredShortcut: KeyboardShortcut?
     private var settingsWindowController: MenuBarSettingsWindowController?
+    private var updateCoordinator: MenuBarUpdateCoordinator?
+    private var updateInstallWindowController: MenuBarUpdateInstallWindowController?
     private var statusItem: NSStatusItem?
 
     init(configuration: QRGoRunConfiguration) {
@@ -86,6 +88,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
         self.statusItem = statusItem
         applyScanShortcut()
+        installUpdateCoordinator()
     }
 
     @objc private func statusItemClicked() {
@@ -97,13 +100,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func startScan() {
-        guard !isRunningAction else {
+        guard canRunQRGoAction else {
             notifier.warning("QRGo is already busy.")
             return
         }
 
         QRGoLogger.menuBarInfo("Starting QR scan from menu bar.")
         isRunningAction = true
+        updateCoordinator?.idleStateDidChange()
         Task { @MainActor in
             let runner = QRGoRunner(
                 configuration: configuration,
@@ -112,17 +116,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             )
             _ = await runner.run()
             isRunningAction = false
+            updateCoordinator?.idleStateDidChange()
         }
     }
 
     @objc private func openLastScan() {
-        guard !isRunningAction else {
+        guard canRunQRGoAction else {
             notifier.warning("QRGo is already busy.")
             return
         }
 
         QRGoLogger.menuBarInfo("Opening last scanned QR code from menu bar.")
         isRunningAction = true
+        updateCoordinator?.idleStateDidChange()
         Task { @MainActor in
             let runner = QRGoRunner(
                 configuration: configuration,
@@ -131,16 +137,23 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             )
             _ = await runner.openLastScan()
             isRunningAction = false
+            updateCoordinator?.idleStateDidChange()
         }
     }
 
     @objc private func openSettings() {
         if settingsWindowController == nil {
-            settingsWindowController = MenuBarSettingsWindowController { [weak self] in
-                self?.registeredShortcut
-            }
+            settingsWindowController = MenuBarSettingsWindowController(
+                registeredShortcutProvider: { [weak self] in
+                    self?.registeredShortcut
+                },
+                onClose: { [weak self] in
+                    self?.updateCoordinator?.idleStateDidChange()
+                }
+            )
         }
         settingsWindowController?.showWindow(nil)
+        updateCoordinator?.idleStateDidChange()
     }
 
     @objc private func quit() {
@@ -164,19 +177,22 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: scanShortcut.menuKeyEquivalent
         )
         scanItem.keyEquivalentModifierMask = scanShortcut.menuModifierMask
-        scanItem.isEnabled = !isRunningAction
+        scanItem.isEnabled = canRunQRGoAction
         menu.addItem(scanItem)
 
         let openLastItem = NSMenuItem(title: "Open Last QR Code", action: #selector(openLastScan), keyEquivalent: "")
-        openLastItem.isEnabled = LastScanStore.hasLastScan && !isRunningAction
+        openLastItem.isEnabled = LastScanStore.hasLastScan && canRunQRGoAction
         menu.addItem(openLastItem)
         menu.addItem(.separator())
 
         let settingsItem = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: "")
         settingsItem.image = nil
+        settingsItem.isEnabled = updateInstallWindowController?.window?.isVisible != true
         menu.addItem(settingsItem)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit QRGo", action: #selector(quit), keyEquivalent: "q"))
+        let quitItem = NSMenuItem(title: "Quit QRGo", action: #selector(quit), keyEquivalent: "q")
+        quitItem.isEnabled = updateInstallWindowController?.isInstalling != true
+        menu.addItem(quitItem)
         menu.delegate = self
 
         for item in menu.items {
@@ -186,6 +202,69 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // Attach the menu only while AppKit is tracking this click so normal left-clicks keep scanning.
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
+    }
+
+    private func installUpdateCoordinator() {
+        let updateCoordinator = MenuBarUpdateCoordinator(
+            service: Self.makeUpdateService(),
+            isIdleProvider: { [weak self] in
+                self?.isIdleForUpdatePresentation ?? false
+            },
+            presentUpdate: { [weak self] update in
+                self?.notifier.updateAvailable(update) { [weak self] in
+                    self?.openUpdateInstaller(for: update)
+                }
+            }
+        )
+        self.updateCoordinator = updateCoordinator
+        updateCoordinator.start()
+    }
+
+    private func openUpdateInstaller(for update: MenuBarUpdate) {
+        if let updateInstallWindowController = updateInstallWindowController,
+           updateInstallWindowController.window?.isVisible == true {
+            updateInstallWindowController.showWindow(nil)
+            return
+        }
+
+        let updateInstallWindowController = MenuBarUpdateInstallWindowController(
+            update: update,
+            installHandler: { [weak self] in
+                guard let updateCoordinator = self?.updateCoordinator else {
+                    return .failed(MenuBarUpdateCommandError(
+                        message: "The update installer is unavailable.",
+                        details: "",
+                        timedOut: false
+                    ))
+                }
+                return await updateCoordinator.installUpdate()
+            },
+            onClose: { [weak self] in
+                self?.updateInstallWindowController = nil
+                self?.updateCoordinator?.idleStateDidChange()
+            }
+        )
+        self.updateInstallWindowController = updateInstallWindowController
+        updateInstallWindowController.showWindow(nil)
+        updateCoordinator?.idleStateDidChange()
+    }
+
+    private var isIdleForUpdatePresentation: Bool {
+        !isRunningAction &&
+            settingsWindowController?.window?.isVisible != true &&
+            updateInstallWindowController?.window?.isVisible != true
+    }
+
+    private var canRunQRGoAction: Bool {
+        !isRunningAction && updateInstallWindowController?.window?.isVisible != true
+    }
+
+    private static func makeUpdateService() -> MenuBarUpdateServicing {
+        if let fakeUpdateService = FakeUpdateService.fromEnvironment() {
+            QRGoLogger.menuBarInfo("Using QRGo dry-run update service.")
+            return fakeUpdateService
+        }
+        return HomebrewUpdateService()
     }
 
     private func applyScanShortcut() {
@@ -264,6 +343,24 @@ final class MenuBarNotifier: QRGoNotifying {
         QRGoLogger.menuBarWarning(message)
         toastPresenter.show(message: message, style: .warning, relativeTo: anchorView)
     }
+
+    func updateAvailable(_ update: MenuBarUpdate, installAction: @escaping () -> Void) {
+        QRGoLogger.menuBarInfo("Showing QRGo update prompt for \(update.currentVersion).")
+        toastPresenter.show(
+            message: "QRGo update available",
+            style: .info,
+            relativeTo: anchorView,
+            actions: [
+                MenuBarToastAction(title: "Later", handler: {}),
+                MenuBarToastAction(title: "Install", handler: installAction)
+            ]
+        )
+    }
+}
+
+private struct MenuBarToastAction {
+    let title: String
+    let handler: () -> Void
 }
 
 /// Owns the visible toast popover and replaces it when a newer notification arrives.
@@ -272,7 +369,12 @@ private final class MenuBarToastPresenter: NSObject, NSPopoverDelegate {
     private var popover: NSPopover?
     private var dismissalWorkItem: DispatchWorkItem?
 
-    func show(message: String, style: MenuBarToastStyle, relativeTo anchorView: NSView?) {
+    func show(
+        message: String,
+        style: MenuBarToastStyle,
+        relativeTo anchorView: NSView?,
+        actions: [MenuBarToastAction] = []
+    ) {
         guard let anchorView = anchorView else {
             NSSound.beep()
             return
@@ -287,20 +389,28 @@ private final class MenuBarToastPresenter: NSObject, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentSize = MenuBarToastViewController.preferredSize
-        popover.contentViewController = MenuBarToastViewController(message: message, style: style)
+        popover.contentSize = MenuBarToastViewController.preferredSize(actionCount: actions.count)
+        popover.contentViewController = MenuBarToastViewController(
+            message: message,
+            style: style,
+            actions: actions
+        )
 
         self.popover = popover
         popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
 
-        let dismissalWorkItem = DispatchWorkItem { [weak self, weak popover] in
-            popover?.close()
-            if self?.popover === popover {
-                self?.popover = nil
+        if actions.isEmpty {
+            let dismissalWorkItem = DispatchWorkItem { [weak self, weak popover] in
+                popover?.close()
+                if self?.popover === popover {
+                    self?.popover = nil
+                }
             }
+            self.dismissalWorkItem = dismissalWorkItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: dismissalWorkItem)
+        } else {
+            dismissalWorkItem = nil
         }
-        self.dismissalWorkItem = dismissalWorkItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: dismissalWorkItem)
     }
 
     func popoverDidClose(_ notification: Notification) {
@@ -314,6 +424,7 @@ private enum MenuBarToastStyle {
     case success
     case failure
     case warning
+    case info
 
     var iconName: String {
         switch self {
@@ -323,6 +434,8 @@ private enum MenuBarToastStyle {
             return "xmark.octagon.fill"
         case .warning:
             return "exclamationmark.triangle.fill"
+        case .info:
+            return "info.circle.fill"
         }
     }
 
@@ -334,6 +447,8 @@ private enum MenuBarToastStyle {
             return .systemRed
         case .warning:
             return .systemOrange
+        case .info:
+            return .systemBlue
         }
     }
 }
@@ -341,14 +456,20 @@ private enum MenuBarToastStyle {
 /// Builds compact content for one menu-bar toast popover.
 @MainActor
 private final class MenuBarToastViewController: NSViewController {
-    static let preferredSize = NSSize(width: 280, height: 40)
+    static func preferredSize(actionCount: Int) -> NSSize {
+        let width: CGFloat = actionCount > 1 ? 410 : actionCount == 1 ? 360 : 280
+        let height: CGFloat = actionCount > 0 ? 44 : 40
+        return NSSize(width: width, height: height)
+    }
 
     private let message: String
     private let style: MenuBarToastStyle
+    private let actions: [MenuBarToastAction]
 
-    init(message: String, style: MenuBarToastStyle) {
+    init(message: String, style: MenuBarToastStyle, actions: [MenuBarToastAction]) {
         self.message = message
         self.style = style
+        self.actions = actions
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -358,6 +479,7 @@ private final class MenuBarToastViewController: NSViewController {
     }
 
     override func loadView() {
+        let preferredSize = Self.preferredSize(actionCount: actions.count)
         let container = NSVisualEffectView()
         container.material = .popover
         container.blendingMode = .behindWindow
@@ -379,9 +501,9 @@ private final class MenuBarToastViewController: NSViewController {
         container.addSubview(iconView)
         container.addSubview(messageLabel)
 
-        NSLayoutConstraint.activate([
-            container.widthAnchor.constraint(equalToConstant: Self.preferredSize.width),
-            container.heightAnchor.constraint(equalToConstant: Self.preferredSize.height),
+        var constraints = [
+            container.widthAnchor.constraint(equalToConstant: preferredSize.width),
+            container.heightAnchor.constraint(equalToConstant: preferredSize.height),
 
             iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
             iconView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
@@ -389,10 +511,44 @@ private final class MenuBarToastViewController: NSViewController {
             iconView.heightAnchor.constraint(equalToConstant: 22),
 
             messageLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
-            messageLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
             messageLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor)
-        ])
+        ]
+
+        if !actions.isEmpty {
+            let actionStack = NSStackView()
+            actionStack.translatesAutoresizingMaskIntoConstraints = false
+            actionStack.orientation = .horizontal
+            actionStack.spacing = 6
+            actionStack.alignment = .centerY
+            container.addSubview(actionStack)
+
+            for (index, action) in actions.enumerated() {
+                let actionButton = NSButton(title: action.title, target: self, action: #selector(performAction(_:)))
+                actionButton.translatesAutoresizingMaskIntoConstraints = false
+                actionButton.bezelStyle = .rounded
+                actionButton.tag = index
+                actionStack.addArrangedSubview(actionButton)
+            }
+
+            constraints.append(contentsOf: [
+                actionStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+                actionStack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+                messageLabel.trailingAnchor.constraint(lessThanOrEqualTo: actionStack.leadingAnchor, constant: -12)
+            ])
+        } else {
+            constraints.append(messageLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8))
+        }
+
+        NSLayoutConstraint.activate(constraints)
 
         view = container
+    }
+
+    @objc private func performAction(_ sender: NSButton) {
+        guard actions.indices.contains(sender.tag) else {
+            return
+        }
+        view.window?.close()
+        actions[sender.tag].handler()
     }
 }

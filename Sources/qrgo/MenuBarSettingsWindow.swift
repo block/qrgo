@@ -1,8 +1,14 @@
 import AppKit
 
 @MainActor
-final class MenuBarSettingsWindowController: NSWindowController {
-    init(registeredShortcutProvider: @escaping () -> KeyboardShortcut?) {
+final class MenuBarSettingsWindowController: NSWindowController, NSWindowDelegate {
+    private let onClose: () -> Void
+
+    init(
+        registeredShortcutProvider: @escaping () -> KeyboardShortcut?,
+        onClose: @escaping () -> Void = {}
+    ) {
+        self.onClose = onClose
         let viewController = MenuBarSettingsViewController(
             registeredShortcutProvider: registeredShortcutProvider
         )
@@ -15,6 +21,7 @@ final class MenuBarSettingsWindowController: NSWindowController {
         window.setContentSize(MenuBarSettingsViewController.contentSize)
 
         super.init(window: window)
+        window.delegate = self
     }
 
     @available(*, unavailable)
@@ -27,6 +34,10 @@ final class MenuBarSettingsWindowController: NSWindowController {
         window?.center()
         super.showWindow(sender)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        onClose()
     }
 }
 

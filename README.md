@@ -58,6 +58,10 @@ The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chose
 
 Menu bar logs are written through macOS Unified Logging and can be viewed in Console by filtering for the `com.block.qrgo` subsystem.
 
+Menu bar mode checks the Homebrew cask for updates on launch and once daily while the user session is active, screens are awake, and QRGo is idle. When an update is available, QRGo shows an Install prompt with a temporary Later dismissal and uses Homebrew to upgrade `block/tap/qrgo-app`.
+
+If QRGo was started by launch at login, the installer asks you to quit and reopen QRGo from Applications before installing so Homebrew does not unload the running LaunchAgent mid-upgrade.
+
 Launch the menu bar app automatically at login:
 
 ```sh
@@ -161,6 +165,17 @@ Pass `release` as the first argument to run the release build instead:
 ```sh
 scripts/run-menu-bar.sh release
 ```
+
+Dry-run the menu bar update UI without invoking Homebrew:
+
+```sh
+QRGO_UPDATE_DRY_RUN=available scripts/run-menu-bar.sh
+QRGO_UPDATE_DRY_RUN=current scripts/run-menu-bar.sh
+QRGO_UPDATE_DRY_RUN=install-error scripts/run-menu-bar.sh
+QRGO_UPDATE_DRY_RUN=check-error scripts/run-menu-bar.sh
+```
+
+Use `QRGO_UPDATE_DRY_RUN=current` to validate the no-update path. Use `QRGO_UPDATE_CHECK_DELAY_SECONDS` and `QRGO_UPDATE_INSTALL_DELAY_SECONDS` to adjust artificial delays while validating the toast, Later dismissal, progress, retry, and success states.
 
 Package a local `QRGo.app` bundle:
 
