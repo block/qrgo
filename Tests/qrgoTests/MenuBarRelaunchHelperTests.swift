@@ -13,8 +13,7 @@ final class MenuBarRelaunchHelperTests: XCTestCase {
 
         XCTAssertEqual(arguments, [
             MenuBarLaunchHelper.agentArgument,
-            "--transform-urls",
-            "--copy"
+            "--transform-urls"
         ])
     }
 
@@ -30,8 +29,7 @@ final class MenuBarRelaunchHelperTests: XCTestCase {
 
         XCTAssertEqual(arguments, [
             MenuBarLaunchHelper.agentArgument,
-            "-t",
-            "-c"
+            "-t"
         ])
     }
 

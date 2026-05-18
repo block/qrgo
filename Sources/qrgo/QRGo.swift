@@ -14,7 +14,7 @@ struct QRGoMain {
                                  iOS: Simulator UDID (e.g., A1B2C3D4-E5F6-7890-ABCD-...)
           -t, --transform-urls   Transform specific URLs to use custom URL schemes
                                  (e.g., cash.app URLs to cashme:// scheme)
-          -c, --copy             Copy the parsed URL to clipboard
+          -c, --copy             Copy the parsed URL to clipboard in CLI scans
           --open-last            Open the last scanned QR code
           --menu-bar             Start QRGo as a macOS menu bar app
           --install-login-item   Start the menu bar app automatically at login
@@ -125,8 +125,7 @@ struct QRGoMain {
         return QRGoRunConfiguration(
             shouldTransformUrls: CommandLine.arguments.contains("--transform-urls") ||
                 CommandLine.arguments.contains("-t"),
-            copyToClipboard: CommandLine.arguments.contains("--copy") ||
-                CommandLine.arguments.contains("-c"),
+            copyToClipboard: false,
             targetDevice: nil,
             showsCapturePath: false,
             showsSelectionPrompt: false,

@@ -52,7 +52,7 @@ qrgo --menu-bar
 
 The CLI route starts QRGo in the menu bar and returns control to your terminal.
 
-Click the menu bar icon to scan a QR code without launching Terminal. When a decoded URL needs a destination, QRGo shows a native macOS chooser with the same options as the terminal flow plus a copy action: iOS Simulator, running Android devices, copy to clipboard, this computer, or skip.
+Click the menu bar icon to scan a QR code without launching Terminal. When a decoded URL needs a destination, QRGo shows an anchored macOS chooser with the same options as the terminal flow plus a copy action: iOS Simulator, running Android devices, copy to clipboard, this computer, or cancel opening.
 
 The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chosen to be easier to press while avoiding common macOS shortcuts. Right-click the menu bar icon and open Settings to record a different shortcut or toggle launch at login.
 
@@ -84,7 +84,7 @@ You can also right-click the menu bar icon to scan, reopen the last scanned QR c
                        iOS: Simulator UDID
 -t, --transform-urls   Transform specific URLs to use custom URL schemes
                        (e.g., cash.app URLs to cashme:// scheme)
--c, --copy             Copy the parsed URL to clipboard
+-c, --copy             Copy the parsed URL to clipboard in CLI scans
 --open-last            Open the last scanned QR code
 --menu-bar             Start QRGo as a macOS menu bar app
 --install-login-item   Start the menu bar app automatically at login

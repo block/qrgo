@@ -67,10 +67,12 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
   - **QRGo.swift** - CLI entry point with `@main` struct and command dispatch
   - **QRGoRunner.swift** - Shared QR capture, decode, URL transformation, target selection, and URL opening workflow
   - **MenuBarApp.swift** - AppKit menu bar app, target selection wiring, and menu bar notifications/alerts
+  - **MenuBarToastPresenter.swift** - Anchored menu bar notification toast presentation
   - **MenuBarUpdateCoordinator.swift** - Menu bar update check scheduling, visible-session gating, and update prompt coordination
   - **MenuBarUpdateInstallWindow.swift** - AppKit modal window for Homebrew update installation progress, retry, and restart prompt
   - **MenuBarSettingsWindow.swift** - AppKit settings window and keyboard shortcut recorder for menu bar mode
-  - **TargetChooserWindowController.swift** - AppKit modal target chooser shown from menu bar scans
+  - **TargetChooserPopoverPresenter.swift** - Anchored AppKit target chooser popover shown from menu bar scans
+  - **TargetChooserControls.swift** - Shared AppKit controls used by the target chooser popover
   - **Helpers/** - Modular helper classes and utilities:
     - `AppBundleLaunchDetector.swift` - Detects no-argument launches from the packaged app bundle so `QRGo.app` opens menu bar mode directly
     - `Shell.swift` - Shell command execution (`ShellResult` struct, static methods)
@@ -92,7 +94,7 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `GlobalKeyboardShortcutManager.swift` - Carbon global hotkey registration for menu bar scan actions
     - `MenuBarSettingsStore.swift` - Persisted menu bar settings and shortcut change notifications
     - `HomebrewUpdateService.swift` - Production and dry-run Homebrew update check/install services for menu bar mode
-- **Tests/qrgoTests/** - XCTest coverage for shortcut validation, menu bar settings persistence, and menu bar update checks
+- **Tests/qrgoTests/** - XCTest coverage for shortcut validation, menu bar settings persistence, menu bar update checks, and target chooser layout
 - **Packaging/** - App bundle packaging assets:
   - **QRGo.app/Info.plist** - Template Info.plist used by `scripts/package-app.sh`
   - **QRGo.app/QRGo.icns** - Exported app icon copied into the bundle resources

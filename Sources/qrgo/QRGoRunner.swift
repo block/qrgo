@@ -52,7 +52,15 @@ struct AvailableTargetOptions {
 
 @MainActor
 protocol QRGoTargetSelecting {
-    func selectTarget(for urlString: String, from options: [TargetOption], footerWarning: String?) -> TargetAction?
+    /// Returns the selected target after any UI or terminal prompt has completed.
+    ///
+    /// Menu-bar mode suspends while its anchored popover is open, while terminal mode still reads synchronously from
+    /// stdin behind this async boundary.
+    func selectTarget(
+        for urlString: String,
+        from options: [TargetOption],
+        footerWarning: String?
+    ) async -> TargetAction?
 }
 
 @MainActor
@@ -87,7 +95,11 @@ struct TerminalNotifier: QRGoNotifying {
 }
 
 struct TerminalTargetSelector: QRGoTargetSelecting {
-    func selectTarget(for urlString: String, from options: [TargetOption], footerWarning: String?) -> TargetAction? {
+    func selectTarget(
+        for urlString: String,
+        from options: [TargetOption],
+        footerWarning: String?
+    ) async -> TargetAction? {
         let selectedAction: TargetAction
 
         if DeviceMemory.shouldUseLast,
@@ -161,7 +173,7 @@ struct QRGoRunner {
         if let deviceId = configuration.targetDevice {
             return openUrlOnConfiguredDevice(urlToOpen, deviceId: deviceId)
         }
-        return openUrlInAvailableTarget(urlToOpen)
+        return await openUrlInAvailableTarget(urlToOpen)
     }
 
     func run() async -> Bool {
@@ -240,7 +252,7 @@ struct QRGoRunner {
                         succeeded = false
                     }
                 } else {
-                    _ = openUrlInAvailableTarget(urlToOpen)
+                    _ = await openUrlInAvailableTarget(urlToOpen)
                 }
             }
             return succeeded
@@ -250,9 +262,9 @@ struct QRGoRunner {
         }
     }
 
-    private func openUrlInAvailableTarget(_ urlString: String) -> Bool {
+    private func openUrlInAvailableTarget(_ urlString: String) async -> Bool {
         let availableTargets = makeAvailableTargetOptions(includesCopyOption: configuration.showsCopyTargetOption)
-        guard let selectedAction = targetSelector.selectTarget(
+        guard let selectedAction = await targetSelector.selectTarget(
             for: urlString,
             from: availableTargets.options,
             footerWarning: availableTargets.footerWarning

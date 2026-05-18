@@ -3,8 +3,8 @@ import Foundation
 /// Launches the persistent menu bar process from the public `--menu-bar` command.
 ///
 /// The public command returns control to the terminal after spawning a detached
-/// `--menu-bar-agent` process. Only non-interactive scan flags are forwarded
-/// because the agent uses AppKit instead of terminal prompts.
+/// `--menu-bar-agent` process. Only menu-bar scan flags are forwarded because
+/// the agent uses AppKit instead of terminal prompts.
 enum MenuBarLaunchHelper {
     static let launchArgument = "--menu-bar"
     static let agentArgument = "--menu-bar-agent"
@@ -45,11 +45,11 @@ enum MenuBarLaunchHelper {
         }
     }
 
-    private static func agentArguments(from arguments: [String]) -> [String] {
+    static func agentArguments(from arguments: [String]) -> [String] {
         var agentArguments = [agentArgument]
         for argument in arguments.dropFirst() {
             switch argument {
-            case "--transform-urls", "-t", "--copy", "-c":
+            case "--transform-urls", "-t":
                 agentArguments.append(argument)
             default:
                 continue

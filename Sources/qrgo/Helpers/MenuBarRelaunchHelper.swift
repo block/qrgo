@@ -31,7 +31,7 @@ enum MenuBarRelaunchHelper {
         var arguments = [MenuBarLaunchHelper.agentArgument]
         for argument in currentArguments.dropFirst() {
             switch argument {
-            case "--transform-urls", "-t", "--copy", "-c":
+            case "--transform-urls", "-t":
                 arguments.append(argument)
             default:
                 continue
