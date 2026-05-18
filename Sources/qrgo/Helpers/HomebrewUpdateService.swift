@@ -65,27 +65,31 @@ struct ShellMenuBarUpdateCommandRunner: MenuBarUpdateCommandRunning {
 struct HomebrewUpdateService: MenuBarUpdateServicing {
     static let caskFullName = "block/tap/qrgo-app"
     static let caskToken = "qrgo-app"
+    private static let lockContext = "QRGo is checking for updates in the background."
 
     let mayUnloadLaunchAgentDuringInstall = true
 
     private let commandRunner: MenuBarUpdateCommandRunning
+    private let updateTimeout: TimeInterval
     private let checkTimeout: TimeInterval
     private let installTimeout: TimeInterval
 
     init(
         commandRunner: MenuBarUpdateCommandRunning = ShellMenuBarUpdateCommandRunner(),
+        updateTimeout: TimeInterval = 30,
         checkTimeout: TimeInterval = 60,
         installTimeout: TimeInterval = 15 * 60
     ) {
         self.commandRunner = commandRunner
+        self.updateTimeout = updateTimeout
         self.checkTimeout = checkTimeout
         self.installTimeout = installTimeout
     }
 
     func checkForUpdate() async -> MenuBarUpdateCheckResult {
         let updateResult = await commandRunner.runLoginShell(
-            "exec brew update --auto-update --quiet",
-            timeout: checkTimeout
+            "exec /usr/bin/env HOMEBREW_LOCK_CONTEXT='\(Self.lockContext)' brew update --auto-update --quiet",
+            timeout: updateTimeout
         )
         if let unavailableMessage = unavailableMessage(from: updateResult) {
             return .unavailable(unavailableMessage)
@@ -98,7 +102,7 @@ struct HomebrewUpdateService: MenuBarUpdateServicing {
         }
 
         let outdatedResult = await commandRunner.runLoginShell(
-            "exec brew outdated --cask --json=v2 \(Self.caskFullName)",
+            "exec /usr/bin/env HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --cask --json=v2 \(Self.caskFullName)",
             timeout: checkTimeout
         )
         if let unavailableMessage = unavailableMessage(from: outdatedResult) {
@@ -125,7 +129,7 @@ struct HomebrewUpdateService: MenuBarUpdateServicing {
 
     func installUpdate() async -> MenuBarUpdateInstallResult {
         let result = await commandRunner.runLoginShell(
-            "exec brew upgrade --cask \(Self.caskFullName)",
+            "exec /usr/bin/env HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade --cask \(Self.caskFullName)",
             timeout: installTimeout
         )
         guard result.succeeded else {

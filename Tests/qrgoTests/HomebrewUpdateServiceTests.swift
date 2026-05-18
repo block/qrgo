@@ -66,6 +66,29 @@ final class HomebrewUpdateServiceTests: XCTestCase {
         XCTAssertTrue(error.timedOut)
     }
 
+    func testUpdateTimeoutReturnsFailureWithoutRunningOutdatedCheck() async {
+        let commandRunner = FakeUpdateCommandRunner(results: [
+            ShellResult(
+                exitCode: 143,
+                stdout: "",
+                stderr: "",
+                timedOut: true
+            )
+        ])
+        let service = HomebrewUpdateService(commandRunner: commandRunner)
+
+        let result = await service.checkForUpdate()
+
+        guard case .failed(let error) = result else {
+            return XCTFail("Expected failed check result.")
+        }
+        XCTAssertEqual(error.message, "Could not update Homebrew metadata. The command timed out.")
+        XCTAssertTrue(error.timedOut)
+        XCTAssertEqual(commandRunner.commands.count, 1)
+        XCTAssertTrue(commandRunner.commands[0].contains("brew update"))
+        XCTAssertTrue(commandRunner.commands[0].contains("HOMEBREW_LOCK_CONTEXT"))
+    }
+
     func testOutdatedCommandFailureReturnsFailureEvenWithParseableJSON() async {
         let commandRunner = FakeUpdateCommandRunner(results: [
             ShellResult(exitCode: 0, stdout: "", stderr: "", timedOut: false),
@@ -131,6 +154,28 @@ final class HomebrewUpdateServiceTests: XCTestCase {
         XCTAssertEqual(result, .unavailable("The QRGo Homebrew cask is not installed."))
     }
 
+    func testCheckRunsBrewUpdateWithShorterTimeoutBeforeOutdatedCheck() async {
+        let commandRunner = FakeUpdateCommandRunner(results: [
+            ShellResult(exitCode: 0, stdout: "", stderr: "", timedOut: false),
+            ShellResult(exitCode: 0, stdout: #"{"formulae":[],"casks":[]}"#, stderr: "", timedOut: false)
+        ])
+        let service = HomebrewUpdateService(
+            commandRunner: commandRunner,
+            updateTimeout: 7,
+            checkTimeout: 11
+        )
+
+        let result = await service.checkForUpdate()
+
+        XCTAssertEqual(result, .current)
+        XCTAssertEqual(commandRunner.commands.count, 2)
+        XCTAssertTrue(commandRunner.commands[0].contains("brew update"))
+        XCTAssertTrue(commandRunner.commands[0].contains("HOMEBREW_LOCK_CONTEXT"))
+        XCTAssertTrue(commandRunner.commands[1].contains("brew outdated"))
+        XCTAssertTrue(commandRunner.commands[1].contains("HOMEBREW_NO_AUTO_UPDATE=1"))
+        XCTAssertEqual(commandRunner.timeouts, [7, 11])
+    }
+
     func testInstallDetectsInteractiveHomebrewFailure() async {
         let commandRunner = FakeUpdateCommandRunner(results: [
             ShellResult(
@@ -149,6 +194,8 @@ final class HomebrewUpdateServiceTests: XCTestCase {
         }
         XCTAssertEqual(error.message, "Homebrew needs terminal access to finish the update.")
         XCTAssertFalse(error.details.isEmpty)
+        XCTAssertTrue(commandRunner.commands[0].contains("brew upgrade"))
+        XCTAssertTrue(commandRunner.commands[0].contains("HOMEBREW_NO_AUTO_UPDATE=1"))
     }
 
     func testInstallTimeoutUsesConciseFailureMessage() async {
@@ -224,12 +271,16 @@ final class HomebrewUpdateServiceTests: XCTestCase {
 
 private final class FakeUpdateCommandRunner: MenuBarUpdateCommandRunning {
     private var results: [ShellResult]
+    private(set) var commands: [String] = []
+    private(set) var timeouts: [TimeInterval] = []
 
     init(results: [ShellResult]) {
         self.results = results
     }
 
     func runLoginShell(_ command: String, timeout: TimeInterval) async -> ShellResult {
+        commands.append(command)
+        timeouts.append(timeout)
         if results.isEmpty {
             return ShellResult(exitCode: 1, stdout: "", stderr: "No fake result.", timedOut: false)
         }
