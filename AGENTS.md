@@ -45,6 +45,14 @@ QRGO_UPDATE_DRY_RUN=check-error scripts/run-menu-bar.sh
 
 Use `QRGO_UPDATE_DRY_RUN=available` to validate the update-available toast, Later dismissal, install progress state, success state, and restart action. Use `QRGO_UPDATE_DRY_RUN=current` to validate the no-update path. Use `QRGO_UPDATE_DRY_RUN=install-error` to validate install failure and retry. Use `QRGO_UPDATE_DRY_RUN=check-error` to validate background check failure logging. Adjust artificial delays with `QRGO_UPDATE_CHECK_DELAY_SECONDS` and `QRGO_UPDATE_INSTALL_DELAY_SECONDS`.
 
+Menu bar launch checks are passive. QRGo may perform one delayed, idle, lock-aware Homebrew metadata refresh per day unless `QRGO_DISABLE_BACKGROUND_HOMEBREW_REFRESH=1` or `HOMEBREW_NO_AUTO_UPDATE=1` is set. QRGo uses its own refresh lease and must never delete Homebrew lock files. To inspect the live Homebrew update-lock holder without terminating it:
+
+```bash
+HOMEBREW_NO_AUTO_UPDATE=1 lsof "$(HOMEBREW_NO_AUTO_UPDATE=1 brew --prefix)/var/homebrew/locks/update"
+```
+
+Homebrew process cleanup is best effort. `SIGKILL`, power loss, OS crashes, and forced user kills can leave Homebrew or QRGo-owned state for the next launch to detect.
+
 ### `xcsift` Output
 
 - Build, lint, and test wrappers pipe output through `xcsift -f toon -w`; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
@@ -89,11 +97,15 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `MenuBarInstanceLock.swift` - Single-instance lock for the menu bar agent process
     - `MenuBarModalWindow.swift` - Shared modal window configuration for menu bar AppKit dialogs
     - `QRGoLogger.swift` - Unified Logging helpers for menu bar logs visible in macOS Console
+    - `IsolatedProcessRunner.swift` - Direct process runner with QRGo-owned process-group cleanup for Homebrew commands
+    - `MenuBarTerminationSignalHandler.swift` - Best-effort SIGTERM cleanup for menu bar-managed background processes
+    - `FakeUpdateService.swift` - Dry-run update service for menu bar update UI validation without Homebrew
     - `LoginItemHelper.swift` - LaunchAgent install/remove helpers for starting menu bar mode at login
     - `KeyboardShortcut.swift` - Keyboard shortcut model, display formatting, and macOS shortcut conflict checks
     - `GlobalKeyboardShortcutManager.swift` - Carbon global hotkey registration for menu bar scan actions
     - `MenuBarSettingsStore.swift` - Persisted menu bar settings and shortcut change notifications
-    - `HomebrewUpdateService.swift` - Production and dry-run Homebrew update check/install services for menu bar mode
+    - `HomebrewUpdateService.swift` - Production Homebrew update check/install service for menu bar mode
+    - `HomebrewUpdateSupport.swift` - Homebrew executable resolution, refresh state, update-lock probing, and QRGo refresh lease helpers
 - **Tests/qrgoTests/** - XCTest coverage for shortcut validation, menu bar settings persistence, menu bar update checks, and target chooser layout
 - **Packaging/** - App bundle packaging assets:
   - **QRGo.app/Info.plist** - Template Info.plist used by `scripts/package-app.sh`
@@ -123,7 +135,7 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
   - Use `enum` for namespacing static utilities (e.g., `Colors`, `Shell`)
   - Cache expensive lookups with static private variables (e.g., `_cachedAdbPath`)
 - **Error handling**: Print colored error messages via `printError()` and exit with non-zero status codes
-- **Shell commands**: Use `Shell.runCommand()` or `Shell.runLoginShell()` static methods; check `ShellResult.succeeded`
+- **Shell commands**: Use `Shell.runCommand()` or `Shell.runLoginShell()` static methods for ordinary commands; use `IsolatedProcessRunner` when QRGo must own and clean up a process group, such as menu bar Homebrew background work. Check `ShellResult.succeeded`
 
 ## Architecture & design patterns
 

@@ -58,7 +58,15 @@ The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chose
 
 Menu bar logs are written through macOS Unified Logging and can be viewed in Console by filtering for the `com.block.qrgo` subsystem.
 
-Menu bar mode checks the Homebrew cask for updates on launch and once daily while the user session is active, screens are awake, and QRGo is idle. When an update is available, QRGo shows an Install prompt with a temporary Later dismissal and uses Homebrew to upgrade `block/tap/qrgo-app`.
+Menu bar mode checks the Homebrew cask for updates on launch and once daily while the user session is active, screens are awake, and QRGo is idle. Launch checks are passive and do not refresh Homebrew metadata. QRGo may perform one delayed, lock-aware Homebrew metadata refresh per day while idle; set `QRGO_DISABLE_BACKGROUND_HOMEBREW_REFRESH=1` or `HOMEBREW_NO_AUTO_UPDATE=1` to keep checks passive only. When an update is available, QRGo shows an Install prompt with a temporary Later dismissal and uses Homebrew to upgrade `block/tap/qrgo-app`.
+
+QRGo never removes Homebrew lock files. If manual `brew update` reports that another update is running, identify the live lock holder without terminating it:
+
+```sh
+HOMEBREW_NO_AUTO_UPDATE=1 lsof "$(HOMEBREW_NO_AUTO_UPDATE=1 brew --prefix)/var/homebrew/locks/update"
+```
+
+Process cleanup is best effort. `SIGKILL`, power loss, OS crashes, and forced user kills can leave Homebrew or QRGo-owned state for the next launch to detect.
 
 If QRGo was started by launch at login, the installer asks you to quit and reopen QRGo from Applications before installing so Homebrew does not unload the running LaunchAgent mid-upgrade.
 
@@ -176,6 +184,8 @@ QRGO_UPDATE_DRY_RUN=check-error scripts/run-menu-bar.sh
 ```
 
 Use `QRGO_UPDATE_DRY_RUN=current` to validate the no-update path. Use `QRGO_UPDATE_CHECK_DELAY_SECONDS` and `QRGO_UPDATE_INSTALL_DELAY_SECONDS` to adjust artificial delays while validating the toast, Later dismissal, progress, retry, and success states.
+
+Set `QRGO_DISABLE_BACKGROUND_HOMEBREW_REFRESH=1` when validating menu bar mode without any background Homebrew metadata refresh. Dry-run modes still do not invoke Homebrew.
 
 Package a local `QRGo.app` bundle:
 

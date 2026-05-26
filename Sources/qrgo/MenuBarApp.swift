@@ -17,6 +17,9 @@ enum MenuBarApp {
 
         let delegate = MenuBarAppDelegate(configuration: configuration)
         app.delegate = delegate
+        MenuBarTerminationSignalHandler.install {
+            NSApp.terminate(nil)
+        }
 
         withExtendedLifetime(delegate) {
             app.run()
@@ -37,6 +40,14 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         controller.installStatusItem()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        controller.applicationShouldTerminate()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        controller.applicationWillTerminate()
     }
 }
 
@@ -312,6 +323,23 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) {
         statusItem?.menu = nil
+    }
+}
+
+private extension MenuBarController {
+    func applicationShouldTerminate() -> NSApplication.TerminateReply {
+        if updateInstallWindowController?.isInstalling == true {
+            QRGoLogger.menuBarWarning("Ignoring termination while QRGo update install is running.")
+            return .terminateCancel
+        }
+        updateCoordinator?.cancelBackgroundChecksForTermination()
+        IsolatedProcessRegistry.shared.terminateAll(reason: "app terminating", escalationDelay: 0)
+        return .terminateNow
+    }
+
+    func applicationWillTerminate() {
+        updateCoordinator?.cancelBackgroundChecksForTermination()
+        IsolatedProcessRegistry.shared.terminateAll(reason: "app terminating", escalationDelay: 0)
     }
 }
 

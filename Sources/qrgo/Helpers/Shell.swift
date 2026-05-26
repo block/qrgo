@@ -6,8 +6,17 @@ struct ShellResult {
     let stdout: String
     let stderr: String
     let timedOut: Bool
+    let cancelled: Bool
 
-    var succeeded: Bool { exitCode == 0 && !timedOut }
+    init(exitCode: Int32, stdout: String, stderr: String, timedOut: Bool, cancelled: Bool = false) {
+        self.exitCode = exitCode
+        self.stdout = stdout
+        self.stderr = stderr
+        self.timedOut = timedOut
+        self.cancelled = cancelled
+    }
+
+    var succeeded: Bool { exitCode == 0 && !timedOut && !cancelled }
 
     var trimmedOutput: String {
         stdout.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -3,13 +3,10 @@ import Foundation
 
 /// Coordinates menu bar update checks with user-visible session and app-idle state.
 @MainActor
+// swiftlint:disable:next type_body_length
 final class MenuBarUpdateCoordinator {
-    private enum CheckReason {
-        case launch
-        case daily
-    }
-
     private let service: MenuBarUpdateServicing
+    private let initialRefreshDelay: TimeInterval
     private let dailyInterval: TimeInterval
     private let isIdleProvider: () -> Bool
     private let presentUpdate: (MenuBarUpdate) -> Void
@@ -19,17 +16,22 @@ final class MenuBarUpdateCoordinator {
     private let isCurrentProcessManagedByLoginItem: () -> Bool
     private let installLoginItem: () -> Bool
 
+    private var initialRefreshTimer: Timer?
     private var dailyTimer: Timer?
     private var isChecking = false
     private var isInstalling = false
-    private var pendingDailyCheck = false
+    private var pendingRefreshCheck = false
     private var pendingUpdate: MenuBarUpdate?
     private var lastPromptedVersion: String?
+    private var checkTask: Task<Void, Never>?
+    private var activeCheckID: UUID?
+    private var activeCheckMode: MenuBarUpdateCheckMode?
     private var sessionIsActive: Bool
     private var screensAreAwake = true
 
     init(
         service: MenuBarUpdateServicing,
+        initialRefreshDelay: TimeInterval = 5 * 60,
         dailyInterval: TimeInterval = 24 * 60 * 60,
         isIdleProvider: @escaping () -> Bool,
         presentUpdate: @escaping (MenuBarUpdate) -> Void,
@@ -40,6 +42,7 @@ final class MenuBarUpdateCoordinator {
         installLoginItem: @escaping () -> Bool = { LoginItemHelper.install(loadImmediately: false) }
     ) {
         self.service = service
+        self.initialRefreshDelay = initialRefreshDelay
         self.dailyInterval = dailyInterval
         self.isIdleProvider = isIdleProvider
         self.presentUpdate = presentUpdate
@@ -52,13 +55,16 @@ final class MenuBarUpdateCoordinator {
     }
 
     deinit {
+        initialRefreshTimer?.invalidate()
         dailyTimer?.invalidate()
+        checkTask?.cancel()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
     func start() {
         installWorkspaceObservers()
-        startCheck(reason: .launch)
+        startCheck(mode: .passive)
+        scheduleInitialRefreshCheck()
     }
 
     func installUpdate() async -> MenuBarUpdateInstallResult {
@@ -79,6 +85,7 @@ final class MenuBarUpdateCoordinator {
 
         let shouldRestoreLoginItem = isLoginItemInstalled()
         isInstalling = true
+        cancelBackgroundRefresh(reason: "install started")
         defer {
             isInstalling = false
             drainDeferredWork()
@@ -90,6 +97,7 @@ final class MenuBarUpdateCoordinator {
     }
 
     func idleStateDidChange() {
+        cancelBackgroundRefreshIfNeeded()
         drainDeferredWork()
     }
 
@@ -97,8 +105,13 @@ final class MenuBarUpdateCoordinator {
         dailyCheckBecameDue()
     }
 
+    func initialRefreshCheckBecameDueForTesting() {
+        initialRefreshCheckBecameDue()
+    }
+
     func screenDidSleepForTesting() {
         screensAreAwake = false
+        cancelBackgroundRefresh(reason: "screen slept")
     }
 
     func screenDidWakeForTesting() {
@@ -108,6 +121,7 @@ final class MenuBarUpdateCoordinator {
 
     func sessionDidResignActiveForTesting() {
         sessionIsActive = false
+        cancelBackgroundRefresh(reason: "session resigned active")
     }
 
     func sessionDidBecomeActiveForTesting() {
@@ -145,6 +159,7 @@ final class MenuBarUpdateCoordinator {
 
     @objc private func screenDidSleep() {
         screensAreAwake = false
+        cancelBackgroundRefresh(reason: "screen slept")
     }
 
     @objc private func screenDidWake() {
@@ -154,6 +169,7 @@ final class MenuBarUpdateCoordinator {
 
     @objc private func sessionDidResignActive() {
         sessionIsActive = false
+        cancelBackgroundRefresh(reason: "session resigned active")
     }
 
     @objc private func sessionDidBecomeActive() {
@@ -166,37 +182,58 @@ final class MenuBarUpdateCoordinator {
         dailyTimer = nil
 
         // A daily check is allowed to become overdue; it should run when a toast can actually be seen.
-        guard canRunDailyCheck else {
-            pendingDailyCheck = true
+        guard canRunRefreshCheck else {
+            pendingRefreshCheck = true
             return
         }
 
-        startCheck(reason: .daily)
+        startCheck(mode: .refreshIfDue)
     }
 
-    private func startCheck(reason: CheckReason) {
+    private func initialRefreshCheckBecameDue() {
+        initialRefreshTimer?.invalidate()
+        initialRefreshTimer = nil
+
+        guard canRunRefreshCheck else {
+            pendingRefreshCheck = true
+            return
+        }
+
+        startCheck(mode: .refreshIfDue)
+    }
+
+    private func startCheck(mode: MenuBarUpdateCheckMode) {
         guard !isChecking, !isInstalling else {
-            if reason == .daily {
-                pendingDailyCheck = true
+            if mode == .refreshIfDue {
+                pendingRefreshCheck = true
             }
             return
         }
 
-        if reason == .daily, !canRunDailyCheck {
-            pendingDailyCheck = true
+        if mode == .refreshIfDue, !canRunRefreshCheck {
+            pendingRefreshCheck = true
             return
         }
 
+        let checkID = UUID()
         isChecking = true
-        Task { [weak self] in
+        activeCheckID = checkID
+        activeCheckMode = mode
+        checkTask = Task { [weak self] in
             guard let self = self else { return }
-            let result = await self.service.checkForUpdate()
-            self.handleCheckResult(result)
+            let result = await self.service.checkForUpdate(mode: mode)
+            self.handleCheckResult(result, checkID: checkID)
         }
     }
 
-    private func handleCheckResult(_ result: MenuBarUpdateCheckResult) {
+    private func handleCheckResult(_ result: MenuBarUpdateCheckResult, checkID: UUID) {
+        guard activeCheckID == checkID else {
+            return
+        }
         isChecking = false
+        activeCheckID = nil
+        activeCheckMode = nil
+        checkTask = nil
         scheduleNextDailyCheck()
 
         switch result {
@@ -223,6 +260,18 @@ final class MenuBarUpdateCoordinator {
         }
     }
 
+    private func scheduleInitialRefreshCheck() {
+        initialRefreshTimer?.invalidate()
+        initialRefreshTimer = Timer.scheduledTimer(
+            withTimeInterval: initialRefreshDelay,
+            repeats: false
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.initialRefreshCheckBecameDue()
+            }
+        }
+    }
+
     private func presentOrDefer(_ update: MenuBarUpdate) {
         guard lastPromptedVersion != update.currentVersion else {
             return
@@ -244,10 +293,47 @@ final class MenuBarUpdateCoordinator {
             presentOrDefer(update)
         }
 
-        if pendingDailyCheck, canRunDailyCheck {
-            pendingDailyCheck = false
-            startCheck(reason: .daily)
+        if pendingRefreshCheck, canRunRefreshCheck {
+            pendingRefreshCheck = false
+            startCheck(mode: .refreshIfDue)
         }
+    }
+
+    func cancelBackgroundChecksForTermination() {
+        initialRefreshTimer?.invalidate()
+        initialRefreshTimer = nil
+        dailyTimer?.invalidate()
+        dailyTimer = nil
+        pendingRefreshCheck = false
+        guard activeCheckMode != nil else {
+            return
+        }
+        log("Cancelling QRGo update check: app terminating.")
+        checkTask?.cancel()
+        checkTask = nil
+        activeCheckID = nil
+        activeCheckMode = nil
+        isChecking = false
+    }
+
+    private func cancelBackgroundRefreshIfNeeded() {
+        guard activeCheckMode == .refreshIfDue, !canRunRefreshCheck else {
+            return
+        }
+        cancelBackgroundRefresh(reason: "QRGo is no longer idle")
+    }
+
+    private func cancelBackgroundRefresh(reason: String) {
+        guard activeCheckMode == .refreshIfDue else {
+            return
+        }
+        log("Cancelling QRGo background Homebrew refresh: \(reason).")
+        checkTask?.cancel()
+        checkTask = nil
+        activeCheckID = nil
+        activeCheckMode = nil
+        isChecking = false
+        scheduleNextDailyCheck()
     }
 
     private func restoreLoginItemIfNeeded(after result: MenuBarUpdateInstallResult, wasInstalled: Bool) {
@@ -265,12 +351,12 @@ final class MenuBarUpdateCoordinator {
         }
     }
 
-    private var canRunDailyCheck: Bool {
+    private var canRunRefreshCheck: Bool {
         sessionIsActive && screensAreAwake && isIdleProvider() && !isInstalling
     }
 
     private var canPresentUpdate: Bool {
-        canRunDailyCheck && !isChecking
+        canRunRefreshCheck && !isChecking
     }
 
     private static func currentSessionIsActive() -> Bool {
