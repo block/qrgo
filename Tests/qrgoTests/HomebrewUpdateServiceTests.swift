@@ -91,7 +91,9 @@ final class HomebrewUpdateServiceTests: XCTestCase {
     func testStaleMetadataLogRunsWhenRefreshIsUnavailable() async {
         let now = Date(timeIntervalSince1970: 8 * 24 * 60 * 60)
         let store = FakeRefreshStore(firstRefreshAttemptWithoutSuccessAt: Date(timeIntervalSince1970: 0))
-        let commandRunner = FakeUpdateCommandRunner(results: [])
+        let commandRunner = FakeUpdateCommandRunner(results: [
+            ShellResult(exitCode: 0, stdout: #"{"formulae":[],"casks":[]}"#, stderr: "", timedOut: false)
+        ])
         var logs: [String] = []
         let service = makeService(
             commandRunner: commandRunner,
@@ -104,7 +106,9 @@ final class HomebrewUpdateServiceTests: XCTestCase {
         _ = await service.checkForUpdate(mode: .refreshIfDue)
 
         XCTAssertTrue(logs.contains("QRGo Homebrew metadata has not refreshed successfully for 8 day(s)."))
-        XCTAssertTrue(commandRunner.commands.isEmpty)
+        XCTAssertEqual(commandRunner.commands.map(\.arguments), [
+            ["outdated", "--cask", "--json=v2", "block/tap/qrgo-app"]
+        ])
     }
 }
 
@@ -185,10 +189,28 @@ final class HomebrewMetadataRefreshExecutionTests: XCTestCase {
         ])
     }
 
-    func testHeldUpdateLockSkipsRefreshAndOutdatedCheck() async {
+    func testHeldUpdateLockSkipsRefreshAndRunsOutdatedCheck() async {
         let now = Date(timeIntervalSince1970: 1_000)
         let store = FakeRefreshStore()
-        let commandRunner = FakeUpdateCommandRunner(results: [])
+        let commandRunner = FakeUpdateCommandRunner(results: [
+            ShellResult(
+                exitCode: 1,
+                stdout: """
+                {
+                  "formulae": [],
+                  "casks": [
+                    {
+                      "name": "qrgo-app",
+                      "installed_versions": ["1.3.0"],
+                      "current_version": "1.3.1"
+                    }
+                  ]
+                }
+                """,
+                stderr: "",
+                timedOut: false
+            )
+        ])
         let service = makeService(
             commandRunner: commandRunner,
             refreshStore: store,
@@ -198,17 +220,21 @@ final class HomebrewMetadataRefreshExecutionTests: XCTestCase {
 
         let result = await service.checkForUpdate(mode: .refreshIfDue)
 
-        XCTAssertEqual(result, .unavailable("Another Homebrew update is already running."))
-        XCTAssertTrue(commandRunner.commands.isEmpty)
+        XCTAssertEqual(result, .available(MenuBarUpdate(installedVersion: "1.3.0", currentVersion: "1.3.1")))
+        XCTAssertEqual(commandRunner.commands.map(\.arguments), [
+            ["outdated", "--cask", "--json=v2", "block/tap/qrgo-app"]
+        ])
         XCTAssertEqual(store.lastRefreshAttemptAt, now)
         XCTAssertEqual(store.lastRefreshFailureReason, "Homebrew update lock is held.")
         XCTAssertEqual(store.firstRefreshAttemptWithoutSuccessAt, now)
     }
 
-    func testUnprobeableUpdateLockSkipsRefreshAndOutdatedCheck() async {
+    func testUnprobeableUpdateLockSkipsRefreshAndRunsOutdatedCheck() async {
         let now = Date(timeIntervalSince1970: 1_000)
         let store = FakeRefreshStore()
-        let commandRunner = FakeUpdateCommandRunner(results: [])
+        let commandRunner = FakeUpdateCommandRunner(results: [
+            ShellResult(exitCode: 0, stdout: #"{"formulae":[],"casks":[]}"#, stderr: "", timedOut: false)
+        ])
         let service = makeService(
             commandRunner: commandRunner,
             refreshStore: store,
@@ -218,8 +244,10 @@ final class HomebrewMetadataRefreshExecutionTests: XCTestCase {
 
         let result = await service.checkForUpdate(mode: .refreshIfDue)
 
-        XCTAssertEqual(result, .unavailable("Another Homebrew update is already running."))
-        XCTAssertTrue(commandRunner.commands.isEmpty)
+        XCTAssertEqual(result, .current)
+        XCTAssertEqual(commandRunner.commands.map(\.arguments), [
+            ["outdated", "--cask", "--json=v2", "block/tap/qrgo-app"]
+        ])
         XCTAssertEqual(store.lastRefreshAttemptAt, now)
         XCTAssertEqual(store.lastRefreshFailureReason, "Probe failed.")
         XCTAssertEqual(store.firstRefreshAttemptWithoutSuccessAt, now)
@@ -241,7 +269,7 @@ final class HomebrewMetadataRefreshExecutionTests: XCTestCase {
         XCTAssertEqual(store.lastRefreshFailureReason, "Already running.")
     }
 
-    func testLockRaceOutputReturnsUnavailable() async {
+    func testLockRaceOutputFallsBackToOutdatedCheck() async {
         let store = FakeRefreshStore()
         let commandRunner = FakeUpdateCommandRunner(results: [
             ShellResult(
@@ -249,14 +277,18 @@ final class HomebrewMetadataRefreshExecutionTests: XCTestCase {
                 stdout: "",
                 stderr: "lockf: 200: already locked\nError: Another `brew update` process is already running.",
                 timedOut: false
-            )
+            ),
+            ShellResult(exitCode: 0, stdout: #"{"formulae":[],"casks":[]}"#, stderr: "", timedOut: false)
         ])
         let service = makeService(commandRunner: commandRunner, refreshStore: store)
 
         let result = await service.checkForUpdate(mode: .refreshIfDue)
 
-        XCTAssertEqual(result, .unavailable("Another Homebrew update is already running."))
-        XCTAssertEqual(commandRunner.commands.map(\.arguments), [["update-if-needed"]])
+        XCTAssertEqual(result, .current)
+        XCTAssertEqual(commandRunner.commands.map(\.arguments), [
+            ["update-if-needed"],
+            ["outdated", "--cask", "--json=v2", "block/tap/qrgo-app"]
+        ])
         XCTAssertEqual(store.lastRefreshFailureReason, "Homebrew update lock is held.")
     }
 
@@ -468,128 +500,5 @@ final class HomebrewUpdateInstallTests: XCTestCase {
         }
         XCTAssertEqual(error.message, "The update took too long and was stopped.")
         XCTAssertTrue(error.timedOut)
-    }
-}
-
-private func makeService(
-    commandRunner: FakeUpdateCommandRunner,
-    executableResolver: HomebrewExecutableResolving = FakeHomebrewExecutableResolver(),
-    refreshStore: FakeRefreshStore = FakeRefreshStore(),
-    lockProbe: HomebrewUpdateLockProbing = FakeHomebrewUpdateLockProbe(state: .unlocked),
-    refreshLease: QRGoHomebrewRefreshLeasing = FakeRefreshLease(),
-    environment: [String: String] = [:],
-    dateProvider: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) },
-    log: @escaping (String) -> Void = { _ in },
-    logError: @escaping (String) -> Void = { _ in }
-) -> HomebrewUpdateService {
-    HomebrewUpdateService(
-        commandRunner: commandRunner,
-        executableResolver: executableResolver,
-        refreshStore: refreshStore,
-        lockProbe: lockProbe,
-        refreshLease: refreshLease,
-        environment: environment,
-        dateProvider: dateProvider,
-        refreshInterval: 24 * 60 * 60,
-        staleMetadataInterval: 7 * 24 * 60 * 60,
-        refreshTimeout: 7,
-        checkTimeout: 11,
-        installTimeout: 13,
-        log: log,
-        logError: logError
-    )
-}
-
-private struct RecordedUpdateCommand: Equatable {
-    let executable: String
-    let arguments: [String]
-    let environment: [String: String]
-    let timeout: TimeInterval
-    let description: String
-}
-
-private final class FakeUpdateCommandRunner: MenuBarUpdateCommandRunning {
-    private var results: [ShellResult]
-    private(set) var commands: [RecordedUpdateCommand] = []
-
-    init(results: [ShellResult]) {
-        self.results = results
-    }
-
-    func run(
-        executable: String,
-        arguments: [String],
-        environment: [String: String],
-        timeout: TimeInterval,
-        description: String
-    ) async -> ShellResult {
-        commands.append(RecordedUpdateCommand(
-            executable: executable,
-            arguments: arguments,
-            environment: environment,
-            timeout: timeout,
-            description: description
-        ))
-        if results.isEmpty {
-            return ShellResult(exitCode: 1, stdout: "", stderr: "No fake result.", timedOut: false)
-        }
-        return results.removeFirst()
-    }
-}
-
-private struct FakeHomebrewExecutableResolver: HomebrewExecutableResolving {
-    var brewPath = "/opt/homebrew/bin/brew"
-    var prefix: String? = "/opt/homebrew"
-
-    func brewExecutablePath() async -> String? {
-        brewPath
-    }
-
-    func homebrewPrefix(brewExecutablePath: String) async -> String? {
-        prefix
-    }
-}
-
-private final class FakeRefreshStore: HomebrewUpdateRefreshStoring {
-    var lastRefreshAttemptAt: Date?
-    var lastRefreshSucceededAt: Date?
-    var lastRefreshFailureReason: String?
-    var firstRefreshAttemptWithoutSuccessAt: Date?
-
-    init(
-        lastRefreshAttemptAt: Date? = nil,
-        lastRefreshSucceededAt: Date? = nil,
-        lastRefreshFailureReason: String? = nil,
-        firstRefreshAttemptWithoutSuccessAt: Date? = nil
-    ) {
-        self.lastRefreshAttemptAt = lastRefreshAttemptAt
-        self.lastRefreshSucceededAt = lastRefreshSucceededAt
-        self.lastRefreshFailureReason = lastRefreshFailureReason
-        self.firstRefreshAttemptWithoutSuccessAt = firstRefreshAttemptWithoutSuccessAt
-    }
-}
-
-private struct FakeHomebrewUpdateLockProbe: HomebrewUpdateLockProbing {
-    let state: HomebrewUpdateLockState
-
-    func updateLockState(homebrewPrefix: String) -> HomebrewUpdateLockState {
-        state
-    }
-}
-
-private final class FakeRefreshLease: QRGoHomebrewRefreshLeasing {
-    private let result: QRGoHomebrewRefreshLeaseResult
-    private(set) var releasedLeases: [QRGoHomebrewRefreshLease] = []
-
-    init(result: QRGoHomebrewRefreshLeaseResult = .acquired(QRGoHomebrewRefreshLease(id: "lease"))) {
-        self.result = result
-    }
-
-    func acquire(mode: String, now: Date) -> QRGoHomebrewRefreshLeaseResult {
-        result
-    }
-
-    func release(_ lease: QRGoHomebrewRefreshLease) {
-        releasedLeases.append(lease)
     }
 }

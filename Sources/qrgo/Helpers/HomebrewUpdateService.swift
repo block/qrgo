@@ -263,11 +263,11 @@ private extension HomebrewUpdateService {
         case .held(let holder):
             log("Skipping QRGo Homebrew metadata refresh: Homebrew update lock is held.\(holderSuffix(holder))")
             refreshStore.lastRefreshFailureReason = "Homebrew update lock is held."
-            return .unavailable(Self.updateLockUnavailableMessage)
+            return .continueToOutdatedCheck
         case .unavailable(let message):
             log("Skipping QRGo Homebrew metadata refresh: \(message)")
             refreshStore.lastRefreshFailureReason = message
-            return .unavailable(Self.updateLockUnavailableMessage)
+            return .continueToOutdatedCheck
         }
 
         log("Starting QRGo Homebrew metadata refresh.")
@@ -283,7 +283,7 @@ private extension HomebrewUpdateService {
         }
         if lockContentionMessage(from: updateIfNeededResult) {
             recordRefreshFailure("Homebrew update lock is held.")
-            return .unavailable(Self.updateLockUnavailableMessage)
+            return .continueToOutdatedCheck
         }
         if updateIfNeededResult.timedOut || updateIfNeededResult.cancelled {
             recordRefreshFailure(timeoutAwareMessage(
@@ -311,7 +311,7 @@ private extension HomebrewUpdateService {
             }
             if lockContentionMessage(from: fallbackResult) {
                 recordRefreshFailure("Homebrew update lock is held.")
-                return .unavailable(Self.updateLockUnavailableMessage)
+                return .continueToOutdatedCheck
             }
             recordRefreshFailure(timeoutAwareMessage("Could not update Homebrew metadata.", result: fallbackResult))
             if fallbackResult.cancelled {

@@ -58,7 +58,7 @@ The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chose
 
 Menu bar logs are written through macOS Unified Logging and can be viewed in Console by filtering for the `com.block.qrgo` subsystem.
 
-Menu bar mode checks the Homebrew cask for updates on launch and once daily while the user session is active, screens are awake, and QRGo is idle. Launch checks are passive and do not refresh Homebrew metadata. QRGo may perform one delayed, lock-aware Homebrew metadata refresh per day while idle; set `QRGO_DISABLE_BACKGROUND_HOMEBREW_REFRESH=1` or `HOMEBREW_NO_AUTO_UPDATE=1` to keep checks passive only. When an update is available, QRGo shows an Install prompt with a temporary Later dismissal and uses Homebrew to upgrade `block/tap/qrgo-app`.
+Menu bar mode checks the Homebrew cask for updates on launch and once daily while the user session is active, screens are awake, and QRGo is idle. Launch checks are passive and do not refresh Homebrew metadata. QRGo may perform one delayed, lock-aware Homebrew metadata refresh per day while idle; set `QRGO_DISABLE_BACKGROUND_HOMEBREW_REFRESH=1` or `HOMEBREW_NO_AUTO_UPDATE=1` to keep checks passive only. If the Homebrew update lock is held, QRGo skips metadata refresh and still checks the cask with auto-update disabled. When an update is available, QRGo shows an Install prompt with a temporary Later dismissal and uses Homebrew to upgrade `block/tap/qrgo-app` with auto-update disabled.
 
 QRGo never removes Homebrew lock files. If manual `brew update` reports that another update is running, identify the live lock holder without terminating it:
 

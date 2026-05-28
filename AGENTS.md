@@ -45,7 +45,7 @@ QRGO_UPDATE_DRY_RUN=check-error scripts/run-menu-bar.sh
 
 Use `QRGO_UPDATE_DRY_RUN=available` to validate the update-available toast, Later dismissal, install progress state, success state, and restart action. Use `QRGO_UPDATE_DRY_RUN=current` to validate the no-update path. Use `QRGO_UPDATE_DRY_RUN=install-error` to validate install failure and retry. Use `QRGO_UPDATE_DRY_RUN=check-error` to validate background check failure logging. Adjust artificial delays with `QRGO_UPDATE_CHECK_DELAY_SECONDS` and `QRGO_UPDATE_INSTALL_DELAY_SECONDS`.
 
-Menu bar launch checks are passive. QRGo may perform one delayed, idle, lock-aware Homebrew metadata refresh per day unless `QRGO_DISABLE_BACKGROUND_HOMEBREW_REFRESH=1` or `HOMEBREW_NO_AUTO_UPDATE=1` is set. QRGo uses its own refresh lease and must never delete Homebrew lock files. To inspect the live Homebrew update-lock holder without terminating it:
+Menu bar launch checks are passive. QRGo may perform one delayed, idle, lock-aware Homebrew metadata refresh per day unless `QRGO_DISABLE_BACKGROUND_HOMEBREW_REFRESH=1` or `HOMEBREW_NO_AUTO_UPDATE=1` is set. If the Homebrew update lock is held, QRGo skips metadata refresh and still checks the cask with auto-update disabled. QRGo uses its own refresh lease and must never delete Homebrew lock files. To inspect the live Homebrew update-lock holder without terminating it:
 
 ```bash
 HOMEBREW_NO_AUTO_UPDATE=1 lsof "$(HOMEBREW_NO_AUTO_UPDATE=1 brew --prefix)/var/homebrew/locks/update"
