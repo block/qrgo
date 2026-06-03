@@ -341,11 +341,11 @@ final class MenuBarUpdateCoordinatorInstallTests: XCTestCase {
 
     func testSuccessfulInstallRestoresLaunchAtLoginIfUpgradeRemovedIt() async {
         let service = FakeMenuBarUpdateService(checkResults: [], installResults: [.installed])
-        var loginItemChecks = [true, false]
         var restoreCount = 0
         let coordinator = makeCoordinator(
             service: service,
-            isLoginItemInstalled: { loginItemChecks.removeFirst() },
+            shouldLaunchAtLogin: { true },
+            isLoginItemInstalled: { false },
             installLoginItem: {
                 restoreCount += 1
                 return true
@@ -365,6 +365,7 @@ final class MenuBarUpdateCoordinatorInstallTests: XCTestCase {
         var restoreCount = 0
         let coordinator = makeCoordinator(
             service: service,
+            shouldLaunchAtLogin: { true },
             isLoginItemInstalled: { true },
             installLoginItem: {
                 restoreCount += 1
@@ -375,6 +376,25 @@ final class MenuBarUpdateCoordinatorInstallTests: XCTestCase {
         let result = await coordinator.installUpdate()
 
         XCTAssertEqual(result, .failed(error))
+        XCTAssertEqual(service.installCount, 1)
+        XCTAssertEqual(restoreCount, 0)
+    }
+
+    func testSuccessfulInstallDoesNotRestoreLaunchAtLoginIfSavedPreferenceIsDisabled() async {
+        let service = FakeMenuBarUpdateService(checkResults: [], installResults: [.installed])
+        var restoreCount = 0
+        let coordinator = makeCoordinator(
+            service: service,
+            shouldLaunchAtLogin: { false },
+            isLoginItemInstalled: { false },
+            installLoginItem: {
+                restoreCount += 1
+                return true
+            }
+        )
+
+        let result = await coordinator.installUpdate()
+        XCTAssertEqual(result, .installed)
         XCTAssertEqual(service.installCount, 1)
         XCTAssertEqual(restoreCount, 0)
     }
@@ -408,6 +428,7 @@ private func makeCoordinator(
     service: MenuBarUpdateServicing,
     isIdleProvider: @escaping () -> Bool = { true },
     presentUpdate: @escaping (MenuBarUpdate) -> Void = { _ in },
+    shouldLaunchAtLogin: @escaping () -> Bool = { false },
     isLoginItemInstalled: @escaping () -> Bool = { false },
     isCurrentProcessManagedByLoginItem: @escaping () -> Bool = { false },
     installLoginItem: @escaping () -> Bool = { true }
@@ -420,6 +441,7 @@ private func makeCoordinator(
         presentUpdate: presentUpdate,
         log: { _ in },
         logError: { _ in },
+        shouldLaunchAtLogin: shouldLaunchAtLogin,
         isLoginItemInstalled: isLoginItemInstalled,
         isCurrentProcessManagedByLoginItem: isCurrentProcessManagedByLoginItem,
         installLoginItem: installLoginItem

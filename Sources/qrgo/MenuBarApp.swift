@@ -83,6 +83,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func installStatusItem() {
         QRGoLogger.menuBarInfo("Installing QRGo status item.")
+        LoginItemHelper.reconcileLaunchAtLoginPreference()
 
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {

@@ -157,7 +157,7 @@ private final class MenuBarSettingsViewController: NSViewController {
         let shortcut = MenuBarSettingsStore.scanShortcut
         shortcutButton.currentShortcut = shortcut
         shortcutButton.currentRegisteredShortcut = registeredShortcutProvider()
-        launchAtLoginSwitch.state = LoginItemHelper.isInstalled ? .on : .off
+        launchAtLoginSwitch.state = LoginItemHelper.shouldLaunchAtLogin ? .on : .off
     }
 
     private func showValidationMessage(_ message: String) {
@@ -210,7 +210,7 @@ private final class MenuBarSettingsViewController: NSViewController {
             LoginItemHelper.install(loadImmediately: false) :
             LoginItemHelper.uninstall()
 
-        launchAtLoginSwitch.state = LoginItemHelper.isInstalled ? .on : .off
+        launchAtLoginSwitch.state = LoginItemHelper.shouldLaunchAtLogin ? .on : .off
         if succeeded {
             clearStatusMessage()
         } else {
