@@ -8,6 +8,13 @@ enum LoginItemHelper {
         return FileManager.default.fileExists(atPath: launchAgentURL.path)
     }
 
+    static var shouldLaunchAtLogin: Bool {
+        launchAtLoginIsEnabled(
+            preference: MenuBarSettingsStore.launchAtLoginPreference,
+            isInstalled: isInstalled
+        )
+    }
+
     /// Returns true when QRGo's LaunchAgent currently owns this process.
     ///
     /// Homebrew cask upgrades can unload launch-at-login jobs. Detecting that
@@ -30,13 +37,50 @@ enum LoginItemHelper {
         return output.range(of: pattern, options: .regularExpression) != nil
     }
 
+    static func launchAtLoginIsEnabled(preference: Bool?, isInstalled: Bool) -> Bool {
+        preference ?? isInstalled
+    }
+
+    /// Migrates missing launch-at-login intent from an installed LaunchAgent and restores the
+    /// LaunchAgent when saved user intent is enabled but Homebrew removed the plist.
+    @discardableResult
+    static func reconcileLaunchAtLoginPreference(
+        preference: Bool? = MenuBarSettingsStore.launchAtLoginPreference,
+        isInstalledProvider: () -> Bool = { LoginItemHelper.isInstalled },
+        setPreference: (Bool?) -> Void = { MenuBarSettingsStore.launchAtLoginPreference = $0 },
+        installLoginItem: () -> Bool = { LoginItemHelper.install(loadImmediately: false, updatePreference: false) },
+        log: (String) -> Void = QRGoLogger.menuBarInfo,
+        logError: (String) -> Void = QRGoLogger.menuBarError
+    ) -> Bool {
+        let isInstalled = isInstalledProvider()
+        guard let preference = preference else {
+            if isInstalled {
+                setPreference(true)
+            }
+            return true
+        }
+
+        guard preference, !isInstalled else {
+            return true
+        }
+
+        log("Restoring QRGo launch-at-login from saved preference.")
+        if installLoginItem() {
+            log("Restored QRGo launch-at-login from saved preference.")
+            return true
+        } else {
+            logError("Failed to restore QRGo launch-at-login from saved preference.")
+            return false
+        }
+    }
+
     /// Installs QRGo's user LaunchAgent and optionally bootstraps it immediately.
     ///
     /// If immediate bootstrap fails, the previous plist is restored and
     /// best-effort bootstrapped again so a failed update does not leave launch at
     /// login pointed at a broken replacement.
     @discardableResult
-    static func install(loadImmediately: Bool) -> Bool {
+    static func install(loadImmediately: Bool, updatePreference: Bool = true) -> Bool {
         do {
             let executablePath = try ExecutablePathHelper.currentExecutablePath()
             let previousPlistData = try? Data(contentsOf: launchAgentURL)
@@ -64,6 +108,9 @@ enum LoginItemHelper {
                 return false
             }
 
+            if updatePreference {
+                MenuBarSettingsStore.launchAtLoginPreference = true
+            }
             printSuccess("QRGo menu bar login item installed.")
             return true
         } catch {
@@ -73,12 +120,15 @@ enum LoginItemHelper {
     }
 
     @discardableResult
-    static func uninstall() -> Bool {
+    static func uninstall(updatePreference: Bool = true) -> Bool {
         unloadLaunchAgent()
 
         do {
             if FileManager.default.fileExists(atPath: launchAgentURL.path) {
                 try FileManager.default.removeItem(at: launchAgentURL)
+            }
+            if updatePreference {
+                MenuBarSettingsStore.launchAtLoginPreference = false
             }
             printSuccess("QRGo menu bar login item removed.")
             return true

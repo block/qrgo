@@ -12,6 +12,7 @@ final class MenuBarUpdateCoordinator {
     private let presentUpdate: (MenuBarUpdate) -> Void
     private let log: (String) -> Void
     private let logError: (String) -> Void
+    private let shouldLaunchAtLogin: () -> Bool
     private let isLoginItemInstalled: () -> Bool
     private let isCurrentProcessManagedByLoginItem: () -> Bool
     private let installLoginItem: () -> Bool
@@ -37,6 +38,7 @@ final class MenuBarUpdateCoordinator {
         presentUpdate: @escaping (MenuBarUpdate) -> Void,
         log: @escaping (String) -> Void = QRGoLogger.menuBarInfo,
         logError: @escaping (String) -> Void = QRGoLogger.menuBarError,
+        shouldLaunchAtLogin: @escaping () -> Bool = { LoginItemHelper.shouldLaunchAtLogin },
         isLoginItemInstalled: @escaping () -> Bool = { LoginItemHelper.isInstalled },
         isCurrentProcessManagedByLoginItem: @escaping () -> Bool = { LoginItemHelper.isManagingCurrentProcess },
         installLoginItem: @escaping () -> Bool = { LoginItemHelper.install(loadImmediately: false) }
@@ -48,6 +50,7 @@ final class MenuBarUpdateCoordinator {
         self.presentUpdate = presentUpdate
         self.log = log
         self.logError = logError
+        self.shouldLaunchAtLogin = shouldLaunchAtLogin
         self.isLoginItemInstalled = isLoginItemInstalled
         self.isCurrentProcessManagedByLoginItem = isCurrentProcessManagedByLoginItem
         self.installLoginItem = installLoginItem
@@ -83,7 +86,7 @@ final class MenuBarUpdateCoordinator {
             ))
         }
 
-        let shouldRestoreLoginItem = isLoginItemInstalled()
+        let shouldRestoreLoginItem = shouldLaunchAtLogin()
         isInstalling = true
         cancelBackgroundRefresh(reason: "install started")
         defer {

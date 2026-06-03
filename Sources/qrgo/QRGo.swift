@@ -55,6 +55,9 @@ struct QRGoMain {
         if args.contains("--version") || args.contains("-v") {
             printVersion()
         }
+        if args.contains("--reconcile-login-item") {
+            exit(LoginItemHelper.reconcileLaunchAtLoginPreference() ? 0 : 1)
+        }
         if args.contains("--install-login-item") {
             exit(LoginItemHelper.install(loadImmediately: true) ? 0 : 1)
         }

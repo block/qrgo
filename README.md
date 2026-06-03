@@ -82,6 +82,8 @@ Remove the login item:
 qrgo --uninstall-login-item
 ```
 
+QRGo stores the launch-at-login preference separately from the LaunchAgent plist. If Homebrew removes the plist during an upgrade, QRGo restores it the next time the menu bar app starts when the saved preference is enabled.
+
 You can also right-click the menu bar icon to scan, reopen the last scanned QR code, open settings, or quit QRGo.
 
 ### Options
