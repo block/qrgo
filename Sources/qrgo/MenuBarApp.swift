@@ -404,6 +404,7 @@ final class MenuBarNotifier: QRGoNotifying {
     weak var anchorView: NSView?
 
     private let toastPresenter = MenuBarToastPresenter()
+    private let statusActivityIndicator = MenuBarStatusActivityIndicator()
 
     func error(_ message: String) {
         QRGoLogger.menuBarError(message)
@@ -412,6 +413,14 @@ final class MenuBarNotifier: QRGoNotifying {
 
     func info(_ message: String) {
         QRGoLogger.menuBarInfo(message)
+    }
+
+    func scanProcessingDidStart() {
+        statusActivityIndicator.start(relativeTo: anchorView)
+    }
+
+    func scanProcessingDidFinish() {
+        statusActivityIndicator.stop()
     }
 
     func success(_ message: String) {
@@ -439,5 +448,106 @@ final class MenuBarNotifier: QRGoNotifying {
 
     func dismissVisibleToast() {
         toastPresenter.dismiss()
+    }
+}
+
+@MainActor
+private final class MenuBarStatusActivityIndicator {
+    private weak var button: NSStatusBarButton?
+    private var animationTimer: Timer?
+    private var animationFrameIndex = 0
+    private var savedImage: NSImage?
+    private var savedTitle = ""
+
+    func start(relativeTo anchorView: NSView?) {
+        guard let button = anchorView as? NSStatusBarButton else { return }
+
+        if self.button !== button {
+            stop()
+        }
+
+        if animationTimer == nil {
+            savedImage = button.image
+            savedTitle = button.title
+            button.title = ""
+            animationFrameIndex = 0
+            button.image = Self.spinnerFrames[animationFrameIndex]
+            button.needsDisplay = true
+            self.button = button
+            startAnimationTimer()
+        }
+    }
+
+    func stop() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+
+        if let button = button {
+            button.image = savedImage
+            button.title = savedTitle
+        }
+
+        button = nil
+        animationFrameIndex = 0
+        savedImage = nil
+        savedTitle = ""
+    }
+
+    private func startAnimationTimer() {
+        let timer = Timer(timeInterval: Self.animationFrameInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.advanceFrame()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
+    }
+
+    private func advanceFrame() {
+        guard let button = button else {
+            stop()
+            return
+        }
+
+        animationFrameIndex = (animationFrameIndex - 1 + Self.spinnerFrames.count) % Self.spinnerFrames.count
+        button.image = Self.spinnerFrames[animationFrameIndex]
+        button.needsDisplay = true
+    }
+
+    private static let animationFrameInterval: TimeInterval = 1.0 / 12.0
+    private static let spinnerFrameCount = 12
+    private static let spinnerImageSize = NSSize(width: 18, height: 18)
+    private static let spinnerFrames = (0..<spinnerFrameCount).map(makeSpinnerFrame)
+
+    private static func makeSpinnerFrame(index: Int) -> NSImage {
+        let image = NSImage(size: spinnerImageSize, flipped: false) { rect in
+            let center = NSPoint(x: rect.midX, y: rect.midY)
+            let innerRadius: CGFloat = 4.5
+            let outerRadius: CGFloat = 7.0
+
+            for tick in 0..<spinnerFrameCount {
+                let age = (index - tick + spinnerFrameCount) % spinnerFrameCount
+                let alpha = 0.18 + ((1.0 - (CGFloat(age) / CGFloat(spinnerFrameCount - 1))) * 0.82)
+                let angle = ((CGFloat(tick) / CGFloat(spinnerFrameCount)) * 2.0 * CGFloat.pi) - (CGFloat.pi / 2.0)
+                let start = NSPoint(
+                    x: center.x + cos(angle) * innerRadius,
+                    y: center.y + sin(angle) * innerRadius
+                )
+                let end = NSPoint(
+                    x: center.x + cos(angle) * outerRadius,
+                    y: center.y + sin(angle) * outerRadius
+                )
+                let path = NSBezierPath()
+                path.lineCapStyle = .round
+                path.lineWidth = 1.8
+                path.move(to: start)
+                path.line(to: end)
+                NSColor.black.withAlphaComponent(alpha).setStroke()
+                path.stroke()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 }
