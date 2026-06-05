@@ -16,7 +16,7 @@ enum DeviceType {
     case unknown
 }
 
-enum TargetAction: Equatable {
+enum TargetAction: Equatable, Sendable {
     case ios(udid: String)
     case android(deviceId: String)
     case copy
@@ -39,13 +39,13 @@ enum TargetAction: Equatable {
     }
 }
 
-struct TargetOption {
+struct TargetOption: Sendable {
     let displayName: String
     let systemSymbolName: String
     let action: TargetAction
 }
 
-struct AvailableTargetOptions {
+struct AvailableTargetOptions: Sendable {
     let options: [TargetOption]
     let footerWarning: String?
 }
@@ -70,8 +70,16 @@ protocol QRGoNotifying {
 
     func error(_ message: String)
     func info(_ message: String)
+    func scanProcessingDidStart()
+    func scanProcessingDidFinish()
     func success(_ message: String)
     func warning(_ message: String)
+}
+
+extension QRGoNotifying {
+    func scanProcessingDidStart() {}
+
+    func scanProcessingDidFinish() {}
 }
 
 struct TerminalNotifier: QRGoNotifying {
@@ -206,7 +214,10 @@ struct QRGoRunner {
                 notifier.info("Screen capture canceled.")
                 return true
             }
+            notifier.scanProcessingDidStart()
+            await Task.yield()
             defer {
+                notifier.scanProcessingDidFinish()
                 try? FileManager.default.removeItem(atPath: imagePath)
             }
 
@@ -214,7 +225,7 @@ struct QRGoRunner {
                 notifier.success("Image saved to: \(imagePath)")
             }
 
-            let decodedStrings = QRCodeDecoder.decode(imagePath: imagePath)
+            let decodedStrings = await decodeQRCodeStrings(imagePath: imagePath)
             if decodedStrings.isEmpty {
                 notifier.error("No QR codes found in the selected area.")
                 return true
@@ -263,7 +274,8 @@ struct QRGoRunner {
     }
 
     private func openUrlInAvailableTarget(_ urlString: String) async -> Bool {
-        let availableTargets = makeAvailableTargetOptions(includesCopyOption: configuration.showsCopyTargetOption)
+        let availableTargets = await loadAvailableTargetOptions()
+        notifier.scanProcessingDidFinish()
         guard let selectedAction = await targetSelector.selectTarget(
             for: urlString,
             from: availableTargets.options,
@@ -277,6 +289,19 @@ struct QRGoRunner {
             reportOpenResult(opened, for: selectedAction)
         }
         return opened
+    }
+
+    private func decodeQRCodeStrings(imagePath: String) async -> [String] {
+        await Task.detached(priority: .userInitiated) {
+            QRCodeDecoder.decode(imagePath: imagePath)
+        }.value
+    }
+
+    private func loadAvailableTargetOptions() async -> AvailableTargetOptions {
+        let includesCopyOption = configuration.showsCopyTargetOption
+        return await Task.detached(priority: .userInitiated) {
+            makeAvailableTargetOptions(includesCopyOption: includesCopyOption)
+        }.value
     }
 
     private func openUrlOnConfiguredDevice(_ urlString: String, deviceId: String) -> Bool {

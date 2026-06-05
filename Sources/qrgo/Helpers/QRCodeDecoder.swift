@@ -1,10 +1,12 @@
-import AppKit
+import Foundation
+import ImageIO
 import Vision
 
 class QRCodeDecoder {
     static func decode(imagePath: String) -> [String] {
-        guard let image = NSImage(contentsOfFile: imagePath),
-              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        let imageURL = URL(fileURLWithPath: imagePath)
+        guard let imageSource = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
             return []
         }
 
