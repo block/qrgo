@@ -1,6 +1,6 @@
 # QR Code Scanner
 
-A simple tool that allows you to capture a portion of your screen containing a QR code, decode it, and automatically open the URL in an iOS Simulator or Android emulator.
+A simple tool that allows you to capture a portion of your screen containing a QR code, decode it, and automatically open the URL in a running iOS Simulator or Android emulator.
 
 https://github.com/user-attachments/assets/910a4490-c1cd-498b-a726-d51c38ae9920
 
@@ -28,7 +28,7 @@ brew install block/tap/qrgo
 
 ## Usage
 
-1. Make sure you have either an iOS Simulator or Android emulator running.
+1. Make sure you have at least one iOS Simulator or Android emulator running.
 2. Run the command:
 ```sh
 qrgo
@@ -37,8 +37,8 @@ qrgo
 4. The tool will:
    - Save the captured image.
    - Decode any QR codes found.
-   - If both iOS and Android emulators are running, prompt you to choose the target platform.
-   - Open any valid URLs in the selected emulator.
+   - If multiple destinations are running, prompt you to choose the target device.
+   - Open any valid URLs in the selected device.
 
 ### Menu Bar Mode
 
@@ -52,7 +52,7 @@ qrgo --menu-bar
 
 The CLI route starts QRGo in the menu bar and returns control to your terminal.
 
-Click the menu bar icon to scan a QR code without launching Terminal. When a decoded URL needs a destination, QRGo shows an anchored macOS chooser with the same options as the terminal flow plus a copy action: iOS Simulator, running Android devices, copy to clipboard, this computer, or cancel opening.
+Click the menu bar icon to scan a QR code without launching Terminal. When a decoded URL needs a destination, QRGo shows an anchored macOS chooser with the same options as the terminal flow plus a copy action: running iOS Simulators, running Android devices, copy to clipboard, this computer, or cancel opening.
 
 The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chosen to be easier to press while avoiding common macOS shortcuts. Right-click the menu bar icon and open Settings to record a different shortcut or toggle launch at login.
 

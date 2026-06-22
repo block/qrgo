@@ -1,21 +1,60 @@
 import Foundation
 
+struct BootedIOSSimulator: Equatable, Sendable {
+    let name: String
+    let udid: String
+
+    var displayName: String {
+        if name == "iOS Simulator" {
+            return "\(name) (\(shortUDID))"
+        }
+        return "\(name) (iOS Simulator, \(shortUDID))"
+    }
+
+    private var shortUDID: String {
+        String(udid.prefix(8))
+    }
+}
+
 class SimulatorHelper {
+    static func getBootedSimulators(suppressStderr: Bool = false) -> [BootedIOSSimulator] {
+        let result = Shell.runCommand(
+            "/usr/bin/xcrun",
+            arguments: ["simctl", "list", "devices", "booted", "-j"],
+            suppressStderr: suppressStderr
+        )
+        guard result.succeeded else {
+            return []
+        }
+        return parseBootedSimulators(fromSimctlJSON: result.stdout)
+    }
+
     static func getBootedSimulator() -> String? {
-        let result = Shell.runCommand("/usr/bin/xcrun", arguments: ["simctl", "list", "devices", "booted", "-j"])
-        guard result.succeeded,
-              let data = result.stdout.data(using: .utf8),
+        getBootedSimulators().first?.udid
+    }
+
+    static func parseBootedSimulators(fromSimctlJSON output: String) -> [BootedIOSSimulator] {
+        guard let data = output.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let devices = json["devices"] as? [String: [[String: Any]]] else {
-            return nil
+            return []
         }
+
+        var bootedSimulators: [BootedIOSSimulator] = []
         for deviceList in devices.values {
-            if let device = deviceList.first(where: { ($0["state"] as? String) == "Booted" }),
-               let udid = device["udid"] as? String {
-                return udid
+            let simulators = deviceList.compactMap { device -> BootedIOSSimulator? in
+                guard (device["state"] as? String) == "Booted",
+                      let udid = device["udid"] as? String,
+                      !udid.isEmpty else {
+                    return nil
+                }
+
+                let name = (device["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "iOS Simulator"
+                return BootedIOSSimulator(name: name, udid: udid)
             }
+            bootedSimulators.append(contentsOf: simulators)
         }
-        return nil
+        return bootedSimulators
     }
 
     @discardableResult

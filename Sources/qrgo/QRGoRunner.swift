@@ -25,8 +25,8 @@ enum TargetAction: Equatable, Sendable {
 
     var key: String {
         switch self {
-        case .ios:
-            return "ios"
+        case .ios(let udid):
+            return "ios:\(udid)"
         case .android(let deviceId):
             return "android:\(deviceId)"
         case .copy:
@@ -434,23 +434,7 @@ func detectDeviceType(_ deviceId: String) -> DeviceType {
 }
 
 func validateiOSDevice(_ udid: String) -> Bool {
-    let result = Shell.runCommand(
-        "/usr/bin/xcrun",
-        arguments: ["simctl", "list", "devices", "booted", "-j"],
-        suppressStderr: true
-    )
-    guard result.succeeded,
-          let data = result.stdout.data(using: .utf8),
-          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let devices = json["devices"] as? [String: [[String: Any]]] else {
-        return false
-    }
-    for deviceList in devices.values where deviceList.contains(where: {
-            ($0["udid"] as? String) == udid && ($0["state"] as? String) == "Booted"
-        }) {
-        return true
-    }
-    return false
+    SimulatorHelper.getBootedSimulators(suppressStderr: true).contains { $0.udid == udid }
 }
 
 func validateAndroidDevice(_ deviceId: String) -> Bool {
@@ -479,9 +463,12 @@ func printDeviceNotFoundError(_ deviceId: String) {
             printInfo("\t\(device) - \(name)")
         }
     }
-    if let iosUDID = SimulatorHelper.getBootedSimulator() {
-        printInfo("\nAvailable iOS Simulator:")
-        printInfo("\t\(iosUDID)")
+    let iosSimulators = SimulatorHelper.getBootedSimulators(suppressStderr: true)
+    if !iosSimulators.isEmpty {
+        printInfo("\nAvailable iOS Simulators:")
+        for simulator in iosSimulators {
+            printInfo("\t\(simulator.udid) - \(simulator.name)")
+        }
     }
 }
 
@@ -520,11 +507,11 @@ func openUrlOnDevice(_ urlString: String, deviceId: String) -> Bool {
 func makeAvailableTargetOptions(includesCopyOption: Bool) -> AvailableTargetOptions {
     var availableOptions: [TargetOption] = []
 
-    if let bootedUDID = SimulatorHelper.getBootedSimulator() {
+    for simulator in SimulatorHelper.getBootedSimulators() {
         availableOptions.append(TargetOption(
-            displayName: "iOS Simulator",
+            displayName: simulator.displayName,
             systemSymbolName: "iphone",
-            action: .ios(udid: bootedUDID)
+            action: .ios(udid: simulator.udid)
         ))
     }
 
