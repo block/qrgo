@@ -5,14 +5,16 @@ struct BootedIOSSimulator: Equatable, Sendable {
     let udid: String
 
     var displayName: String {
-        if name == "iOS Simulator" {
-            return "\(name) (\(shortUDID))"
+        if displayNameBase == "iOS Simulator" {
+            return "Simulator"
         }
-        return "\(name) (iOS Simulator, \(shortUDID))"
+        return "\(displayNameBase) (Simulator)"
     }
 
-    private var shortUDID: String {
-        String(udid.prefix(8))
+    private var displayNameBase: String {
+        name
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "generation", with: "gen")
     }
 }
 
