@@ -36,6 +36,10 @@ enum MenuBarToastStyle {
             return .systemBlue
         }
     }
+
+    var dismissalDelay: TimeInterval {
+        self == .failure ? 5 : 3
+    }
 }
 
 /// Owns the visible toast popover and replaces it when a newer notification arrives.
@@ -64,12 +68,13 @@ final class MenuBarToastPresenter: NSObject, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentSize = MenuBarToastViewController.preferredSize(actionCount: actions.count)
-        popover.contentViewController = MenuBarToastViewController(
+        let viewController = MenuBarToastViewController(
             message: message,
             style: style,
             actions: actions
         )
+        popover.contentViewController = viewController
+        popover.contentSize = viewController.view.fittingSize
 
         self.popover = popover
         popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
@@ -82,7 +87,7 @@ final class MenuBarToastPresenter: NSObject, NSPopoverDelegate {
                 }
             }
             self.dismissalWorkItem = dismissalWorkItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: dismissalWorkItem)
+            DispatchQueue.main.asyncAfter(deadline: .now() + style.dismissalDelay, execute: dismissalWorkItem)
         } else {
             dismissalWorkItem = nil
         }
@@ -104,13 +109,14 @@ final class MenuBarToastPresenter: NSObject, NSPopoverDelegate {
 }
 
 /// Builds compact content for one menu-bar toast popover.
+///
+/// Width is fixed per action count; height grows as the message wraps.
 @MainActor
 private final class MenuBarToastViewController: NSViewController {
-    static func preferredSize(actionCount: Int) -> NSSize {
-        let width: CGFloat = actionCount > 1 ? 410 : actionCount == 1 ? 360 : 280
-        let height: CGFloat = actionCount > 0 ? 44 : 40
-        return NSSize(width: width, height: height)
-    }
+    private static let horizontalPadding: CGFloat = 8
+    private static let verticalPadding: CGFloat = 12
+    private static let iconSize: CGFloat = 22
+    private static let spacing: CGFloat = 12
 
     private let message: String
     private let style: MenuBarToastStyle
@@ -129,7 +135,7 @@ private final class MenuBarToastViewController: NSViewController {
     }
 
     override func loadView() {
-        let preferredSize = Self.preferredSize(actionCount: actions.count)
+        let width: CGFloat = actions.count > 1 ? 410 : actions.count == 1 ? 360 : 280
         let container = NSVisualEffectView()
         container.material = .popover
         container.blendingMode = .behindWindow
@@ -141,27 +147,35 @@ private final class MenuBarToastViewController: NSViewController {
         iconView.image = NSImage(systemSymbolName: style.iconName, accessibilityDescription: nil)
         iconView.contentTintColor = style.iconColor
 
-        let messageLabel = NSTextField(labelWithString: message)
+        let messageLabel = NSTextField(wrappingLabelWithString: message)
         messageLabel.translatesAutoresizingMaskIntoConstraints = false
         messageLabel.font = .systemFont(ofSize: NSFont.systemFontSize)
-        messageLabel.lineBreakMode = .byTruncatingTail
-        messageLabel.maximumNumberOfLines = 2
+        messageLabel.isSelectable = false
         messageLabel.textColor = .labelColor
 
         container.addSubview(iconView)
         container.addSubview(messageLabel)
 
+        var messageWidth = width - Self.horizontalPadding * 2 - Self.iconSize - Self.spacing
         var constraints = [
-            container.widthAnchor.constraint(equalToConstant: preferredSize.width),
-            container.heightAnchor.constraint(equalToConstant: preferredSize.height),
+            container.widthAnchor.constraint(equalToConstant: width),
+            container.heightAnchor.constraint(greaterThanOrEqualToConstant: actions.isEmpty ? 40 : 44),
 
-            iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            iconView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Self.horizontalPadding),
             iconView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 22),
-            iconView.heightAnchor.constraint(equalToConstant: 22),
+            iconView.widthAnchor.constraint(equalToConstant: Self.iconSize),
+            iconView.heightAnchor.constraint(equalToConstant: Self.iconSize),
 
-            messageLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
-            messageLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+            messageLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: Self.spacing),
+            messageLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            messageLabel.topAnchor.constraint(
+                greaterThanOrEqualTo: container.topAnchor,
+                constant: Self.verticalPadding
+            ),
+            messageLabel.bottomAnchor.constraint(
+                lessThanOrEqualTo: container.bottomAnchor,
+                constant: -Self.verticalPadding
+            )
         ]
 
         if !actions.isEmpty {
@@ -180,15 +194,29 @@ private final class MenuBarToastViewController: NSViewController {
                 actionStack.addArrangedSubview(actionButton)
             }
 
+            messageWidth -= actionStack.fittingSize.width + Self.spacing
             constraints.append(contentsOf: [
-                actionStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+                actionStack.trailingAnchor.constraint(
+                    equalTo: container.trailingAnchor,
+                    constant: -Self.horizontalPadding
+                ),
                 actionStack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                messageLabel.trailingAnchor.constraint(lessThanOrEqualTo: actionStack.leadingAnchor, constant: -12)
+                messageLabel.trailingAnchor.constraint(
+                    lessThanOrEqualTo: actionStack.leadingAnchor,
+                    constant: -Self.spacing
+                )
             ])
         } else {
-            constraints.append(messageLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8))
+            constraints.append(
+                messageLabel.trailingAnchor.constraint(
+                    equalTo: container.trailingAnchor,
+                    constant: -Self.horizontalPadding
+                )
+            )
         }
 
+        // Wrapped labels need an explicit width to report a multi-line fitting height.
+        messageLabel.preferredMaxLayoutWidth = messageWidth
         NSLayoutConstraint.activate(constraints)
 
         view = container
