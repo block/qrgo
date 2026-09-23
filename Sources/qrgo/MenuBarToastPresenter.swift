@@ -80,11 +80,8 @@ final class MenuBarToastPresenter: NSObject, NSPopoverDelegate {
         popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
 
         if actions.isEmpty {
-            let dismissalWorkItem = DispatchWorkItem { [weak self, weak popover] in
-                popover?.close()
-                if self?.popover === popover {
-                    self?.popover = nil
-                }
+            let dismissalWorkItem = DispatchWorkItem { [weak self] in
+                self?.dismiss()
             }
             self.dismissalWorkItem = dismissalWorkItem
             DispatchQueue.main.asyncAfter(deadline: .now() + style.dismissalDelay, execute: dismissalWorkItem)
