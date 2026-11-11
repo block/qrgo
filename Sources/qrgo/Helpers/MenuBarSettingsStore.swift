@@ -4,6 +4,18 @@ enum MenuBarSettingsStore {
     static let scanShortcutDidChange = Notification.Name("MenuBarSettingsStore.scanShortcutDidChange")
     static let defaultsDomain = "com.block.qrgo"
 
+    /// Only an explicit Devices menu choice enables automatic routing.
+    static var preferredDeviceKey: String? {
+        get { userDefaults.string(forKey: preferredDeviceKeyName) }
+        set {
+            if let newValue = newValue {
+                userDefaults.set(newValue, forKey: preferredDeviceKeyName)
+            } else {
+                userDefaults.removeObject(forKey: preferredDeviceKeyName)
+            }
+        }
+    }
+
     /// `nil` means QRGo has not recorded explicit user intent yet.
     /// Callers should fall back to the current LaunchAgent state for legacy installs.
     static var launchAtLoginPreference: Bool? {
@@ -77,6 +89,7 @@ enum MenuBarSettingsStore {
 
     private static let launchAtLoginKey = "menuBar.launchAtLogin"
     private static let scanShortcutKey = "menuBar.scanShortcut"
+    private static let preferredDeviceKeyName = "menuBar.preferredDevice"
     private static let legacyMigratedKeys = [
         launchAtLoginKey,
         scanShortcutKey
