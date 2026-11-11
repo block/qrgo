@@ -56,6 +56,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let configuration: QRGoRunConfiguration
     private let notifier = MenuBarNotifier()
     private lazy var targetSelector = AppKitTargetSelector(notifier: notifier)
+    private let deviceMenu = MenuBarDeviceMenu()
     private lazy var shortcutManager = GlobalKeyboardShortcutManager { [weak self] in
         self?.startScan()
     }
@@ -131,7 +132,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             }
             let runner = QRGoRunner(
                 configuration: configuration,
-                targetSelector: targetSelector,
+                targetSelector: PreferredDeviceTargetSelector(fallback: targetSelector),
                 notifier: notifier
             )
             _ = await runner.run()
@@ -154,7 +155,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             }
             let runner = QRGoRunner(
                 configuration: configuration,
-                targetSelector: targetSelector,
+                targetSelector: PreferredDeviceTargetSelector(fallback: targetSelector),
                 notifier: notifier
             )
             _ = await runner.openLastScan()
@@ -204,6 +205,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         openLastItem.isEnabled = LastScanStore.hasLastScan && canRunQRGoAction
         menu.addItem(openLastItem)
         menu.addItem(.separator())
+
+        let devicesItem = NSMenuItem(title: "Devices", action: nil, keyEquivalent: "")
+        devicesItem.submenu = deviceMenu.menu
+        devicesItem.isEnabled = canRunQRGoAction
+        menu.addItem(devicesItem)
 
         let settingsItem = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: "")
         settingsItem.image = nil

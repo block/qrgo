@@ -75,6 +75,7 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
   - **QRGo.swift** - CLI entry point with `@main` struct and command dispatch
   - **QRGoRunner.swift** - Shared QR capture, decode, URL transformation, target selection, and URL opening workflow
   - **MenuBarApp.swift** - AppKit menu bar app, target selection wiring, and menu bar notifications/alerts
+  - **MenuBarDeviceSelection.swift** - Devices submenu discovery and automatic routing to an explicitly selected destination
   - **MenuBarToastPresenter.swift** - Anchored menu bar notification toast presentation
   - **MenuBarUpdateCoordinator.swift** - Menu bar update check scheduling, visible-session gating, and update prompt coordination
   - **MenuBarUpdateInstallWindow.swift** - AppKit modal window for Homebrew update installation progress, retry, and restart prompt
