@@ -22,6 +22,18 @@ class ScreenCaptureHelper {
                 domain: "ScreenCapture", code: Int(result.exitCode), userInfo: [NSLocalizedDescriptionKey: message]
             )
         }
-        return FileManager.default.fileExists(atPath: imagePath) ? imagePath : nil
+        if FileManager.default.fileExists(atPath: imagePath) {
+            return imagePath
+        }
+        if mode == .click {
+            throw NSError(
+                domain: "ScreenCapture", code: -1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Screen capture did not produce an image. Check Screen Recording permission."
+                ]
+            )
+        }
+        return nil
     }
 }

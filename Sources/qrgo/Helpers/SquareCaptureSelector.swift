@@ -21,7 +21,7 @@ final class SquareCaptureSelector: NSObject {
 
         app.setActivationPolicy(.accessory)
         app.finishLaunching()
-        panels = screens.map { SquareCapturePanel(screen: $0) }
+        panels = screens.map { SquareCapturePanel(frame: $0.frame) }
         for panel in panels {
             panel.orderFrontRegardless()
         }
@@ -117,22 +117,23 @@ final class SquareCaptureSelector: NSObject {
 }
 
 @MainActor
-private final class SquareCapturePanel: NSPanel {
+final class SquareCapturePanel: NSPanel {
     override var canBecomeKey: Bool { true }
 
-    init(screen: NSScreen) {
-        super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+    init(frame: CGRect) {
+        super.init(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         acceptsMouseMovedEvents = true
+        ignoresMouseEvents = false
         worksWhenModal = true
         hidesOnDeactivate = false
         sharingType = .none
         isReleasedWhenClosed = false
-        contentView = SquareCaptureView(frame: CGRect(origin: .zero, size: screen.frame.size))
+        contentView = SquareCaptureView(frame: CGRect(origin: .zero, size: frame.size))
     }
 }
 
@@ -142,8 +143,12 @@ private final class SquareCaptureView: NSView {
         didSet { needsDisplay = true }
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.clear.setFill()
+        // WindowServer can pass clicks through fully transparent pixels to the app underneath.
+        // Cover the entire panel, including the square's interior, with a slight tint.
+        NSColor.black.withAlphaComponent(0.03).setFill()
         dirtyRect.fill(using: .copy)
         guard let selectionRect = selectionRect else { return }
 
