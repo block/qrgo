@@ -168,12 +168,13 @@ private final class SquareCaptureView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         // WindowServer can pass clicks through fully transparent pixels to the app underneath.
         // Cover the entire panel, including the square's interior, with a slight tint.
-        NSColor.black.withAlphaComponent(0.03).setFill()
+        NSColor.black.withAlphaComponent(0.08).setFill()
         dirtyRect.fill(using: .copy)
         guard let selectionRect = selectionRect else { return }
 
         let frame = selectionRect.insetBy(dx: 3, dy: 3)
         let cornerLength = min(32, frame.width * 0.15)
+        let cornerRadius = min(10, cornerLength / 2)
         let corners = NSBezierPath()
         corners.lineCapStyle = .round
         corners.lineJoinStyle = .round
@@ -183,9 +184,10 @@ private final class SquareCaptureView: NSView {
                     x: frame.midX + horizontal * frame.width / 2,
                     y: frame.midY + vertical * frame.height / 2
                 )
+                let end = NSPoint(x: corner.x, y: corner.y - vertical * cornerLength)
                 corners.move(to: NSPoint(x: corner.x - horizontal * cornerLength, y: corner.y))
-                corners.line(to: corner)
-                corners.line(to: NSPoint(x: corner.x, y: corner.y - vertical * cornerLength))
+                corners.appendArc(from: corner, to: end, radius: cornerRadius)
+                corners.line(to: end)
             }
         }
         NSColor.black.withAlphaComponent(0.6).setStroke()
