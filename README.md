@@ -40,6 +40,22 @@ qrgo
    - If multiple destinations are running, prompt you to choose the target device.
    - Open any valid URLs in the selected device.
 
+### Capture Mode
+
+CLI scans support two capture modes:
+
+```sh
+# Move a fixed square over the QR code, then click once to capture it.
+qrgo --capture-mode click
+
+# Hold and drag to select an area (the default).
+qrgo --capture-mode drag
+```
+
+In click mode, the square follows the pointer. Each side measures approximately 14.14% of the current display's logical width. The square stays within the display at screen edges. Its size is fixed and has no settings control. Press **Esc** or right-click to cancel.
+
+The flag applies to one CLI scan and combines with `--copy`, `--device`, and `--transform-urls`.
+
 ### Menu Bar Mode
 
 Launch `QRGo.app` from `/Applications` to run QRGo as a persistent macOS menu bar app.
@@ -55,6 +71,8 @@ The CLI route starts QRGo in the menu bar and returns control to your terminal.
 Click the menu bar icon to scan a QR code without launching Terminal. When a decoded URL needs a destination, QRGo shows an anchored macOS chooser with the same options as the terminal flow plus a copy action: running iOS Simulators, running Android devices, copy to clipboard, this computer, or cancel opening.
 
 The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chosen to be easier to press while avoiding common macOS shortcuts. Right-click the menu bar icon and open Settings to record a different shortcut or toggle launch at login.
+
+In **Settings → Capture mode**, choose **Drag selection** or **Click selection**. Drag selection is the default. The choice applies to icon clicks, the scan shortcut, and **Scan QR Code** from the menu. Changes apply to the next scan and persist across app restarts. CLI scans continue to use the `--capture-mode` flag independently.
 
 Menu bar logs are written through macOS Unified Logging and can be viewed in Console by filtering for the `com.block.qrgo` subsystem.
 
@@ -95,6 +113,7 @@ You can also right-click the menu bar icon to scan, reopen the last scanned QR c
 -t, --transform-urls   Transform specific URLs to use custom URL schemes
                        (e.g., cash.app URLs to cashme:// scheme)
 -c, --copy             Copy the parsed URL to clipboard in CLI scans
+--capture-mode <mode>  CLI capture mode: drag (default) or click (fixed square)
 --open-last            Open the last scanned QR code
 --menu-bar             Start QRGo as a macOS menu bar app
 --install-login-item   Start the menu bar app automatically at login
