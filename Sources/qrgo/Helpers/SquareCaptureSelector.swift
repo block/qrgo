@@ -158,7 +158,7 @@ final class SquareCapturePanel: NSPanel {
 }
 
 @MainActor
-private final class SquareCaptureView: NSView {
+final class SquareCaptureView: NSView {
     var selectionRect: CGRect? {
         didSet { needsDisplay = true }
     }
@@ -166,11 +166,14 @@ private final class SquareCaptureView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        // WindowServer can pass clicks through fully transparent pixels to the app underneath.
-        // Cover the entire panel, including the square's interior, with a slight tint.
         NSColor.black.withAlphaComponent(0.08).setFill()
         dirtyRect.fill(using: .copy)
         guard let selectionRect = selectionRect else { return }
+
+        // Fully transparent pixels pass clicks to the app underneath. Keep one alpha step
+        // inside the square to receive clicks without visibly dimming the capture area.
+        NSColor.black.withAlphaComponent(1.0 / 255.0).setFill()
+        selectionRect.fill(using: .copy)
 
         let frame = selectionRect.insetBy(dx: 3, dy: 3)
         let cornerLength = min(32, frame.width * 0.15)
