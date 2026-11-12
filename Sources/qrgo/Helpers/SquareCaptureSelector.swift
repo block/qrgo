@@ -170,14 +170,18 @@ final class SquareCaptureView: NSView {
         dirtyRect.fill(using: .copy)
         guard let selectionRect = selectionRect else { return }
 
-        // Fully transparent pixels pass clicks to the app underneath. Keep one alpha step
-        // inside the square to receive clicks without visibly dimming the capture area.
-        NSColor.black.withAlphaComponent(1.0 / 255.0).setFill()
-        selectionRect.fill(using: .copy)
-
         let frame = selectionRect.insetBy(dx: 3, dy: 3)
         let cornerLength = min(32, frame.width * 0.15)
         let cornerRadius = min(10, cornerLength / 2)
+
+        // Fully transparent pixels pass clicks to the app underneath. Keep one alpha step
+        // inside the square to receive clicks without visibly dimming the capture area.
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.compositingOperation = .copy
+        NSColor.black.withAlphaComponent(1.0 / 255.0).setFill()
+        NSBezierPath(roundedRect: frame, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+        NSGraphicsContext.restoreGraphicsState()
+
         let corners = NSBezierPath()
         corners.lineCapStyle = .round
         corners.lineJoinStyle = .round
