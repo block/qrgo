@@ -40,6 +40,22 @@ qrgo
    - If multiple destinations are running, prompt you to choose the target device.
    - Open any valid URLs in the selected device.
 
+### Capture Mode
+
+CLI scans support two capture modes:
+
+```sh
+# Move a fixed square over the QR code, then click once to capture it.
+qrgo --capture-mode click
+
+# Hold and drag to select an area (the default).
+qrgo --capture-mode drag
+```
+
+In click mode, the square follows the pointer. Each side measures 10% of the current display's logical width. The square stays within the display at screen edges. Its size is fixed and has no settings control. Press **Esc** or right-click to cancel.
+
+The flag applies to one CLI scan and combines with `--copy`, `--device`, and `--transform-urls`. Menu bar scans continue to use drag selection.
+
 ### Menu Bar Mode
 
 Launch `QRGo.app` from `/Applications` to run QRGo as a persistent macOS menu bar app.
@@ -95,6 +111,7 @@ You can also right-click the menu bar icon to scan, reopen the last scanned QR c
 -t, --transform-urls   Transform specific URLs to use custom URL schemes
                        (e.g., cash.app URLs to cashme:// scheme)
 -c, --copy             Copy the parsed URL to clipboard in CLI scans
+--capture-mode <mode>  CLI capture mode: drag (default) or click (fixed square)
 --open-last            Open the last scanned QR code
 --menu-bar             Start QRGo as a macOS menu bar app
 --install-login-item   Start the menu bar app automatically at login

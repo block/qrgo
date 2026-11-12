@@ -86,6 +86,9 @@ The project uses Swift Package Manager (SPM) with no external dependencies, rely
     - `Shell.swift` - Shell command execution (`ShellResult` struct, static methods)
     - `Colors.swift` - ANSI color codes and print helpers (`printError`, `printSuccess`, etc.)
     - `ScreenCaptureHelper.swift` - Screen region capture via `screencapture`
+    - `CaptureMode.swift` - CLI capture-mode parsing and selection instructions
+    - `SquareCaptureSelector.swift` - Fixed-square overlay and click selection for CLI scans
+    - `SquareCaptureGeometry.swift` - Display-relative square sizing and capture coordinate conversion
     - `ScreenCapturePermissionHelper.swift` - Screen recording permission checks
     - `QRCodeDecoder.swift` - QR/barcode detection using Vision framework
     - `LastScanStore.swift` - Last scanned QR URL persistence shared by terminal and menu-bar reopen flows

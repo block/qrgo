@@ -15,6 +15,7 @@ struct QRGoMain {
           -t, --transform-urls   Transform specific URLs to use custom URL schemes
                                  (e.g., cash.app URLs to cashme:// scheme)
           -c, --copy             Copy the parsed URL to clipboard in CLI scans
+          --capture-mode <mode>  CLI capture mode: drag (default) or click (fixed square)
           --open-last            Open the last scanned QR code
           --menu-bar             Start QRGo as a macOS menu bar app
           --install-login-item   Start the menu bar app automatically at login
@@ -65,6 +66,14 @@ struct QRGoMain {
             exit(LoginItemHelper.uninstall() ? 0 : 1)
         }
 
+        let captureMode: CaptureMode
+        do {
+            captureMode = try CaptureMode.parse(arguments: args)
+        } catch {
+            printError(error.localizedDescription)
+            exit(1)
+        }
+
         if args.contains(MenuBarLaunchHelper.agentArgument) {
             MenuBarApp.run(configuration: makeMenuBarConfiguration())
             return
@@ -85,7 +94,7 @@ struct QRGoMain {
         }
 
         let runner = QRGoRunner(
-            configuration: makeTerminalConfiguration(),
+            configuration: makeTerminalConfiguration(captureMode: captureMode),
             targetSelector: TerminalTargetSelector(),
             notifier: TerminalNotifier()
         )
@@ -99,7 +108,7 @@ struct QRGoMain {
         printTip("Tip: Use \(Colors.bold)qrgo --menu-bar\(Colors.reset)\(Colors.gray) to launch as a menu bar app.")
     }
 
-    private static func makeTerminalConfiguration() -> QRGoRunConfiguration {
+    private static func makeTerminalConfiguration(captureMode: CaptureMode) -> QRGoRunConfiguration {
         return QRGoRunConfiguration(
             shouldTransformUrls: CommandLine.arguments.contains("--transform-urls") ||
                 CommandLine.arguments.contains("-t"),
@@ -108,7 +117,8 @@ struct QRGoMain {
             targetDevice: parseDeviceArgument(),
             showsCapturePath: true,
             showsSelectionPrompt: true,
-            showsCopyTargetOption: false
+            showsCopyTargetOption: false,
+            captureMode: captureMode
         )
     }
 
