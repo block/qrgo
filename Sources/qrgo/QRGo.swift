@@ -42,6 +42,10 @@ struct QRGoMain {
     static func main() async {
         let args = CommandLine.arguments
 
+        if args.contains(ClickCaptureHelper.argument) {
+            ClickCaptureHelper.run()
+        }
+
         if AppBundleLaunchDetector.shouldLaunchMenuBarApp(
             arguments: args,
             bundleIdentifier: Bundle.main.bundleIdentifier

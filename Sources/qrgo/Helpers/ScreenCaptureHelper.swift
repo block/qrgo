@@ -8,7 +8,7 @@ class ScreenCaptureHelper {
         case .drag:
             arguments = ["-i"]
         case .click:
-            guard let rect = SquareCaptureSelector().selectRegion() else { return nil }
+            guard let rect = try ClickCaptureHelper.selectRegion() else { return nil }
             arguments = ["-x", "-R\(Int(rect.minX)),\(Int(rect.minY)),\(Int(rect.width)),\(Int(rect.height))"]
         }
         let tempDir = FileManager.default.temporaryDirectory

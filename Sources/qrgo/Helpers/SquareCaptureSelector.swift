@@ -16,6 +16,7 @@ final class SquareCaptureSelector: NSObject {
     func selectRegion() -> CGRect? {
         let app = NSApplication.shared
         let previousPolicy = app.activationPolicy()
+        trace("Starting selection. Active: \(app.isActive), policy: \(previousPolicy.rawValue).")
         let screens = NSScreen.screens
         guard let primaryScreen = screens.first else { return nil }
 
@@ -48,6 +49,7 @@ final class SquareCaptureSelector: NSObject {
 
         isSelecting = true
         let response = app.runModal(for: initialPanel)
+        trace("Modal ended: \(response.rawValue), selected region: \(String(describing: selectedRect)).")
         guard response == .OK, let selectedRect = selectedRect else { return nil }
         return SquareCaptureGeometry.captureRect(selection: selectedRect, primaryScreenFrame: primaryScreen.frame)
     }
@@ -61,14 +63,19 @@ final class SquareCaptureSelector: NSObject {
             case .mouseMoved, .leftMouseDragged:
                 self.updateSelection()
             case .leftMouseDown:
+                self.trace("Received left click. Active: \(NSApp.isActive).")
                 self.updateSelection()
                 if self.selectedRect != nil {
                     self.finish(with: .OK)
                 }
             case .rightMouseDown:
+                self.trace("Received right click.")
                 self.cancel()
             case .keyDown:
-                if event.keyCode == 53 { self.cancel() }
+                if event.keyCode == 53 {
+                    self.trace("Received Escape.")
+                    self.cancel()
+                }
             default:
                 break
             }
@@ -78,8 +85,15 @@ final class SquareCaptureSelector: NSObject {
 
     private func installCancellationObservers() {
         for name in [NSApplication.didChangeScreenParametersNotification, NSApplication.didResignActiveNotification] {
-            NotificationCenter.default.addObserver(self, selector: #selector(cancel), name: name, object: nil)
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(cancelForNotification(_:)), name: name, object: nil
+            )
         }
+    }
+
+    @objc private func cancelForNotification(_ notification: Notification) {
+        trace("Cancellation notification: \(notification.name.rawValue), selecting: \(isSelecting).")
+        cancel()
     }
 
     @objc private func cancel() {
@@ -89,6 +103,7 @@ final class SquareCaptureSelector: NSObject {
     }
 
     private func finish(with response: NSApplication.ModalResponse) {
+        trace("Finishing with response: \(response.rawValue).")
         isSelecting = false
         NSApp.stopModal(withCode: response)
         // The monitor consumes the click or Escape event. Wake the modal loop so it can exit immediately.
@@ -98,6 +113,11 @@ final class SquareCaptureSelector: NSObject {
         ) {
             NSApp.postEvent(event, atStart: true)
         }
+    }
+
+    private func trace(_ message: String) {
+        guard ProcessInfo.processInfo.environment["QRGO_CAPTURE_DEBUG"] == "1" else { return }
+        fputs("QRGo capture: \(message)\n", stderr)
     }
 
     private func updateSelection() {
