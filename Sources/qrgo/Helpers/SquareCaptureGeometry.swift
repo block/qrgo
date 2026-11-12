@@ -3,7 +3,7 @@ import Foundation
 enum SquareCaptureGeometry {
     /// Logical points keep the outline and capture region aligned on Retina displays.
     static func selectionRect(center: CGPoint, screenFrame: CGRect) -> CGRect {
-        let side = min(max(1, floor(screenFrame.width / 10)), screenFrame.width, screenFrame.height)
+        let side = min(max(1, floor(screenFrame.width * sqrt(2) / 10)), screenFrame.width, screenFrame.height)
         let origin = CGPoint(
             x: min(max(floor(center.x - side / 2), screenFrame.minX), screenFrame.maxX - side),
             y: min(max(floor(center.y - side / 2), screenFrame.minY), screenFrame.maxY - side)

@@ -52,7 +52,7 @@ qrgo --capture-mode click
 qrgo --capture-mode drag
 ```
 
-In click mode, the square follows the pointer. Each side measures 10% of the current display's logical width. The square stays within the display at screen edges. Its size is fixed and has no settings control. Press **Esc** or right-click to cancel.
+In click mode, the square follows the pointer. Each side measures approximately 14.14% of the current display's logical width. The square stays within the display at screen edges. Its size is fixed and has no settings control. Press **Esc** or right-click to cancel.
 
 The flag applies to one CLI scan and combines with `--copy`, `--device`, and `--transform-urls`. Menu bar scans continue to use drag selection.
 
