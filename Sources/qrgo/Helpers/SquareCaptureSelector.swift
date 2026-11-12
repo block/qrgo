@@ -172,12 +172,27 @@ private final class SquareCaptureView: NSView {
         dirtyRect.fill(using: .copy)
         guard let selectionRect = selectionRect else { return }
 
-        let outline = NSBezierPath(rect: selectionRect.insetBy(dx: 2, dy: 2))
-        NSColor.black.setStroke()
-        outline.lineWidth = 4
-        outline.stroke()
+        let frame = selectionRect.insetBy(dx: 3, dy: 3)
+        let cornerLength = min(32, frame.width * 0.15)
+        let corners = NSBezierPath()
+        corners.lineCapStyle = .round
+        corners.lineJoinStyle = .round
+        for horizontal: CGFloat in [-1, 1] {
+            for vertical: CGFloat in [-1, 1] {
+                let corner = NSPoint(
+                    x: frame.midX + horizontal * frame.width / 2,
+                    y: frame.midY + vertical * frame.height / 2
+                )
+                corners.move(to: NSPoint(x: corner.x - horizontal * cornerLength, y: corner.y))
+                corners.line(to: corner)
+                corners.line(to: NSPoint(x: corner.x, y: corner.y - vertical * cornerLength))
+            }
+        }
+        NSColor.black.withAlphaComponent(0.6).setStroke()
+        corners.lineWidth = 5
+        corners.stroke()
         NSColor.white.setStroke()
-        outline.lineWidth = 2
-        outline.stroke()
+        corners.lineWidth = 3
+        corners.stroke()
     }
 }
