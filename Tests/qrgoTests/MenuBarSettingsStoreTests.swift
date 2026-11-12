@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import qrgo
 
@@ -28,6 +29,43 @@ final class MenuBarSettingsStoreTests: XCTestCase {
 
     func testLaunchAtLoginPreferenceDefaultsToNil() {
         XCTAssertNil(MenuBarSettingsStore.launchAtLoginPreference)
+    }
+
+    func testCaptureModeDefaultsToDrag() {
+        XCTAssertEqual(MenuBarSettingsStore.captureMode, .drag)
+    }
+
+    func testCaptureModeFallsBackToDragForAnUnknownSavedValue() {
+        userDefaults?.set("unknown", forKey: "menuBar.captureMode")
+        XCTAssertEqual(MenuBarSettingsStore.captureMode, .drag)
+    }
+
+    func testCaptureModePersistsAcrossDefaultsInstancesAndCanSwitchBack() throws {
+        MenuBarSettingsStore.captureMode = .click
+        MenuBarSettingsStore.userDefaults = try XCTUnwrap(UserDefaults(suiteName: XCTUnwrap(suiteName)))
+        XCTAssertEqual(MenuBarSettingsStore.captureMode, .click)
+
+        MenuBarSettingsStore.captureMode = .drag
+        MenuBarSettingsStore.userDefaults = try XCTUnwrap(UserDefaults(suiteName: XCTUnwrap(suiteName)))
+        XCTAssertEqual(MenuBarSettingsStore.captureMode, .drag)
+    }
+
+    @MainActor
+    func testSettingsPickerRestoresAndUpdatesCaptureMode() throws {
+        _ = NSApplication.shared
+        MenuBarSettingsStore.captureMode = .click
+        let controller = MenuBarSettingsWindowController(registeredShortcutProvider: { nil })
+        let view = try XCTUnwrap(controller.window?.contentViewController?.view)
+        let picker = try XCTUnwrap(view.subviews.compactMap { $0 as? NSPopUpButton }.first)
+        XCTAssertEqual(picker.selectedItem?.title, "Click selection")
+
+        picker.selectItem(withTitle: "Drag selection")
+        picker.sendAction(picker.action, to: picker.target)
+        XCTAssertEqual(MenuBarSettingsStore.captureMode, .drag)
+
+        picker.selectItem(withTitle: "Click selection")
+        picker.sendAction(picker.action, to: picker.target)
+        XCTAssertEqual(MenuBarSettingsStore.captureMode, .click)
     }
 
     func testLaunchAtLoginPreferencePersistsEnabledState() {

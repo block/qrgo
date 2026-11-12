@@ -57,7 +57,7 @@ enum CaptureMode: String, Equatable {
             case .repeatedOption:
                 return "Specify --capture-mode only once."
             case .requiresCLIScan:
-                return "--capture-mode is available only for CLI scans. Menu bar scans use drag selection."
+                return "--capture-mode is available only for CLI scans. Change menu bar capture mode in Settings."
             }
         }
     }

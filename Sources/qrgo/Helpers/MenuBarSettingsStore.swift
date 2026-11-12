@@ -4,6 +4,15 @@ enum MenuBarSettingsStore {
     static let scanShortcutDidChange = Notification.Name("MenuBarSettingsStore.scanShortcutDidChange")
     static let defaultsDomain = "com.block.qrgo"
 
+    static var captureMode: CaptureMode {
+        get {
+            guard let value = userDefaults.string(forKey: captureModeKey),
+                  let mode = CaptureMode(rawValue: value) else { return .drag }
+            return mode
+        }
+        set { userDefaults.set(newValue.rawValue, forKey: captureModeKey) }
+    }
+
     /// `nil` means QRGo has not recorded explicit user intent yet.
     /// Callers should fall back to the current LaunchAgent state for legacy installs.
     static var launchAtLoginPreference: Bool? {
@@ -77,6 +86,7 @@ enum MenuBarSettingsStore {
 
     private static let launchAtLoginKey = "menuBar.launchAtLogin"
     private static let scanShortcutKey = "menuBar.scanShortcut"
+    private static let captureModeKey = "menuBar.captureMode"
     private static let legacyMigratedKeys = [
         launchAtLoginKey,
         scanShortcutKey

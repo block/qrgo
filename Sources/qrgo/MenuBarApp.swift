@@ -122,6 +122,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         QRGoLogger.menuBarInfo("Starting QR scan from menu bar.")
+        var scanConfiguration = configuration
+        scanConfiguration.captureMode = MenuBarSettingsStore.captureMode
         isRunningAction = true
         updateCoordinator?.idleStateDidChange()
         Task { @MainActor in
@@ -130,7 +132,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 updateCoordinator?.idleStateDidChange()
             }
             let runner = QRGoRunner(
-                configuration: configuration,
+                configuration: scanConfiguration,
                 targetSelector: targetSelector,
                 notifier: notifier
             )
