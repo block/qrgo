@@ -25,7 +25,8 @@ private extension TargetOption {
 }
 
 private extension Array where Element == TargetOption {
-    func uniqueDevice(matching key: String) -> TargetOption? {
+    func uniqueDevice(matching key: String?) -> TargetOption? {
+        guard let key = key else { return nil }
         let matches = filter { $0.devicePreferenceKey == key }
         return matches.count == 1 ? matches.first : nil
     }
@@ -42,17 +43,10 @@ struct PreferredDeviceTargetSelector: QRGoTargetSelecting {
         from options: [TargetOption],
         footerWarning: String?
     ) async -> TargetAction? {
-        guard let key = preferredDeviceKey() else {
-            return await fallback.selectTarget(for: urlString, from: options, footerWarning: footerWarning)
-        }
-        if let option = options.uniqueDevice(matching: key) {
+        if let option = options.uniqueDevice(matching: preferredDeviceKey()) {
             return option.action
         }
-
-        let warning = ["The selected device is unavailable. Choose another destination.", footerWarning]
-            .compactMap { $0 }
-            .joined(separator: "\n")
-        return await fallback.selectTarget(for: urlString, from: options, footerWarning: warning)
+        return await fallback.selectTarget(for: urlString, from: options, footerWarning: footerWarning)
     }
 }
 
@@ -107,7 +101,8 @@ final class MenuBarDeviceMenu: NSObject, NSMenuDelegate {
 
     private func rebuildMenu() {
         menu.removeAllItems()
-        let selectedKey = readPreference()
+        let devices = availableTargets?.options.filter { $0.action.isDeviceDestination } ?? []
+        let selectedKey = devices.uniqueDevice(matching: readPreference())?.devicePreferenceKey
         addChoice(title: "No default", key: nil, selectedKey: selectedKey)
         menu.addItem(.separator())
 
@@ -116,11 +111,6 @@ final class MenuBarDeviceMenu: NSObject, NSMenuDelegate {
             return
         }
 
-        let devices = availableTargets.options.filter { $0.action.isDeviceDestination }
-        if let selectedKey = selectedKey, devices.uniqueDevice(matching: selectedKey) == nil {
-            let unavailableItem = addStatus("Unavailable: \(selectedKey)")
-            unavailableItem.state = .on
-        }
         for device in devices {
             let item: NSMenuItem
             if let key = device.devicePreferenceKey, devices.uniqueDevice(matching: key) != nil {

@@ -49,7 +49,7 @@ struct MenuBarDeviceSelectionTests {
             for: "cashme://first", from: [android, local], footerWarning: "ADB warning"
         )
         #expect(disconnected == nil)
-        #expect(fallback.warning == "The selected device is unavailable. Choose another destination.\nADB warning")
+        #expect(fallback.warning == "ADB warning")
 
         let reconnected = await selector.selectTarget(for: "cashme://second", from: [ios, local], footerWarning: nil)
         #expect(reconnected == ios.action)
@@ -74,7 +74,7 @@ struct MenuBarDeviceSelectionTests {
 
         let missing = await selector.selectTarget(for: "cashme://first", from: [replacement], footerWarning: nil)
         #expect(missing == .skip)
-        #expect(fallback.warning == "The selected device is unavailable. Choose another destination.")
+        #expect(fallback.warning == nil)
 
         let available = await selector.selectTarget(
             for: "cashme://second", from: [replacement, preferred], footerWarning: nil
@@ -124,7 +124,7 @@ struct MenuBarDeviceSelectionTests {
         #expect(controller.menu.items[0].state == .on)
     }
 
-    @Test func `menu refresh removes disconnected devices and keeps unavailable preference clearable`() async {
+    @Test func `menu uses no default while the saved device is disconnected`() async {
         _ = NSApplication.shared
         var options = [ios, android]
         var preference: String? = ios.action.key
@@ -134,14 +134,22 @@ struct MenuBarDeviceSelectionTests {
             writePreference: { preference = $0 }
         )
         await controller.refreshDevices()
-        options = []
+        options = [android]
         await controller.refreshDevices()
 
-        #expect(controller.menu.items.map(\.title) == [
-            "No default", "", "Unavailable: ios:sim-1", "No devices available"
-        ])
+        #expect(controller.menu.items.map(\.title) == ["No default", "", "Pixel"])
+        #expect(controller.menu.items[0].state == .on)
+        #expect(controller.menu.items[2].state == .off)
+        #expect(preference == ios.action.key)
+
+        options = [ios, android]
+        await controller.refreshDevices()
+        #expect(controller.menu.items[0].state == .off)
         #expect(controller.menu.items[2].state == .on)
-        #expect(!controller.menu.items[2].isEnabled)
+
+        options = []
+        await controller.refreshDevices()
+        #expect(controller.menu.items.map(\.title) == ["No default", "", "No devices available"])
         controller.menu.performActionForItem(at: 0)
         #expect(preference == nil)
     }
