@@ -59,7 +59,7 @@ struct PreferredDeviceTargetSelector: QRGoTargetSelecting {
 /// Refreshes device discovery without blocking AppKit's menu tracking.
 @MainActor
 final class MenuBarDeviceMenu: NSObject, NSMenuDelegate {
-    let menu = NSMenu(title: "Devices")
+    let menu = NSMenu(title: "Default Device")
     private var refreshTask: Task<Void, Never>?
     private var availableTargets: AvailableTargetOptions?
     private let loadTargets: () async -> AvailableTargetOptions
@@ -108,7 +108,7 @@ final class MenuBarDeviceMenu: NSObject, NSMenuDelegate {
     private func rebuildMenu() {
         menu.removeAllItems()
         let selectedKey = readPreference()
-        addChoice(title: "None", key: nil, selectedKey: selectedKey)
+        addChoice(title: "No default", key: nil, selectedKey: selectedKey)
         menu.addItem(.separator())
 
         guard let availableTargets = availableTargets else {

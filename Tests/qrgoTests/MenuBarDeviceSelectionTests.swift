@@ -111,7 +111,8 @@ struct MenuBarDeviceSelectionTests {
         )
         await controller.refreshDevices()
 
-        #expect(controller.menu.items.map(\.title) == ["None", "", "iPhone", "Pixel", "This computer"])
+        #expect(controller.menu.title == "Default Device")
+        #expect(controller.menu.items.map(\.title) == ["No default", "", "iPhone", "Pixel", "This computer"])
         #expect(controller.menu.items[0].state == .on)
         controller.menu.performActionForItem(at: 3)
         #expect(preference == android.action.key)
@@ -137,7 +138,7 @@ struct MenuBarDeviceSelectionTests {
         await controller.refreshDevices()
 
         #expect(controller.menu.items.map(\.title) == [
-            "None", "", "Unavailable: ios:sim-1", "No devices available"
+            "No default", "", "Unavailable: ios:sim-1", "No devices available"
         ])
         #expect(controller.menu.items[2].state == .on)
         #expect(!controller.menu.items[2].isEnabled)
@@ -155,7 +156,7 @@ struct MenuBarDeviceSelectionTests {
             },
             readPreference: { android.action.key }
         )
-        #expect(controller.menu.items.map(\.title) == ["None", "", "Loading devices…"])
+        #expect(controller.menu.items.map(\.title) == ["No default", "", "Loading devices…"])
         await controller.refreshDevices()
         let selectedItem = try #require(controller.menu.items.last)
         willLoad = {

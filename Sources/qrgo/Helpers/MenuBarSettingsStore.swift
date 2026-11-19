@@ -4,7 +4,7 @@ enum MenuBarSettingsStore {
     static let scanShortcutDidChange = Notification.Name("MenuBarSettingsStore.scanShortcutDidChange")
     static let defaultsDomain = "com.block.qrgo"
 
-    /// Only an explicit Devices menu choice enables automatic routing.
+    /// Only an explicit Default Device choice enables automatic routing.
     static var preferredDeviceKey: String? {
         get { userDefaults.string(forKey: preferredDeviceKeyName) }
         set {

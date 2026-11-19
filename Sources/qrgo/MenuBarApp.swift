@@ -206,7 +206,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(openLastItem)
         menu.addItem(.separator())
 
-        let devicesItem = NSMenuItem(title: "Devices", action: nil, keyEquivalent: "")
+        let devicesItem = NSMenuItem(title: deviceMenu.menu.title, action: nil, keyEquivalent: "")
         devicesItem.submenu = deviceMenu.menu
         devicesItem.isEnabled = canRunQRGoAction
         menu.addItem(devicesItem)
