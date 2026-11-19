@@ -11,6 +11,26 @@ extension TargetAction {
     }
 }
 
+private extension TargetOption {
+    var devicePreferenceKey: String? {
+        switch action {
+        case .ios, .local:
+            return action.key
+        case .android:
+            return androidPreferenceKey
+        case .copy, .skip:
+            return nil
+        }
+    }
+}
+
+private extension Array where Element == TargetOption {
+    func uniqueDevice(matching key: String) -> TargetOption? {
+        let matches = filter { $0.devicePreferenceKey == key }
+        return matches.count == 1 ? matches.first : nil
+    }
+}
+
 /// Uses an explicit menu preference only while that destination is available.
 @MainActor
 struct PreferredDeviceTargetSelector: QRGoTargetSelecting {
@@ -22,19 +42,16 @@ struct PreferredDeviceTargetSelector: QRGoTargetSelecting {
         from options: [TargetOption],
         footerWarning: String?
     ) async -> TargetAction? {
-        let key = preferredDeviceKey()
-        if let option = options.first(where: { $0.action.isDeviceDestination && $0.action.key == key }) {
+        guard let key = preferredDeviceKey() else {
+            return await fallback.selectTarget(for: urlString, from: options, footerWarning: footerWarning)
+        }
+        if let option = options.uniqueDevice(matching: key) {
             return option.action
         }
 
-        let warning: String?
-        if key != nil {
-            warning = ["The selected device is unavailable. Choose another destination.", footerWarning]
-                .compactMap { $0 }
-                .joined(separator: "\n")
-        } else {
-            warning = footerWarning
-        }
+        let warning = ["The selected device is unavailable. Choose another destination.", footerWarning]
+            .compactMap { $0 }
+            .joined(separator: "\n")
         return await fallback.selectTarget(for: urlString, from: options, footerWarning: warning)
     }
 }
@@ -77,10 +94,8 @@ final class MenuBarDeviceMenu: NSObject, NSMenuDelegate {
     }
 
     func refreshDevices() async {
-        availableTargets = nil
-        rebuildMenu()
         let targets = await loadTargets()
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled, targets != availableTargets else { return }
         availableTargets = targets
         rebuildMenu()
     }
@@ -102,14 +117,20 @@ final class MenuBarDeviceMenu: NSObject, NSMenuDelegate {
         }
 
         let devices = availableTargets.options.filter { $0.action.isDeviceDestination }
-        if let selectedKey = selectedKey, !devices.contains(where: { $0.action.key == selectedKey }) {
-            let unavailableItem = addStatus("Selected device unavailable")
+        if let selectedKey = selectedKey, devices.uniqueDevice(matching: selectedKey) == nil {
+            let unavailableItem = addStatus("Unavailable: \(selectedKey)")
             unavailableItem.state = .on
         }
         for device in devices {
-            let item = addChoice(title: device.displayName, key: device.action.key, selectedKey: selectedKey)
+            let item: NSMenuItem
+            if let key = device.devicePreferenceKey, devices.uniqueDevice(matching: key) != nil {
+                item = addChoice(title: device.displayName, key: key, selectedKey: selectedKey)
+                item.toolTip = key
+            } else {
+                item = addStatus(device.displayName)
+                item.toolTip = "This device cannot be selected for automatic delivery."
+            }
             item.image = NSImage(systemSymbolName: device.systemSymbolName, accessibilityDescription: nil)
-            item.toolTip = device.action.key
         }
         if devices.isEmpty {
             addStatus("No devices available")

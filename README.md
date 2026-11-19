@@ -56,6 +56,8 @@ Click the menu bar icon to scan a QR code without launching Terminal. When a dec
 
 To send scanned links directly, right-click the menu bar icon and hover over **Devices**. Select a running iOS Simulator, an Android device, or this computer. No device is selected by default. QRGo remembers your selection across app restarts and uses it for new scans and **Open Last QR Code**. Select **None** to show the chooser again. If the selected device is unavailable, QRGo shows the chooser so you can select another destination.
 
+QRGo remembers Android emulators by their Android Virtual Device (AVD) name. If QRGo cannot identify a single running instance of that AVD, use the chooser to select a destination for the current scan.
+
 ![QRGo Devices submenu with an Android emulator selected](docs/images/devices-menu.png)
 
 The menu bar app also registers a global scan shortcut, `Control-Shift-Q`, chosen to be easier to press while avoiding common macOS shortcuts. Right-click the menu bar icon and open Settings to record a different shortcut or toggle launch at login.
