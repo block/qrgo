@@ -8,6 +8,7 @@ struct QRGoRunConfiguration {
     let showsCapturePath: Bool
     let showsSelectionPrompt: Bool
     let showsCopyTargetOption: Bool
+    var captureMode: CaptureMode = .drag
 }
 
 enum DeviceType {
@@ -207,11 +208,15 @@ struct QRGoRunner {
         }
 
         if configuration.showsSelectionPrompt {
-            notifier.warning("Please select the area containing the QR code…")
+            notifier.warning(configuration.captureMode.selectionPrompt)
         }
 
         do {
-            guard let imagePath = try ScreenCaptureHelper.captureSelection() else {
+            let captureMode = configuration.captureMode
+            let capturedImagePath = try await Task.detached(priority: .userInitiated) {
+                try ScreenCaptureHelper.captureSelection(mode: captureMode)
+            }.value
+            guard let imagePath = capturedImagePath else {
                 notifier.info("Screen capture canceled.")
                 return true
             }

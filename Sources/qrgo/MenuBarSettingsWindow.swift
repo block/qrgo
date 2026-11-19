@@ -43,12 +43,13 @@ final class MenuBarSettingsWindowController: NSWindowController, NSWindowDelegat
 
 @MainActor
 private final class MenuBarSettingsViewController: NSViewController {
-    static let contentSize = NSSize(width: 480, height: 150)
+    static let contentSize = NSSize(width: 480, height: 210)
 
     private let registeredShortcutProvider: () -> KeyboardShortcut?
     private let shortcutButton = ShortcutRecorderButton()
     private let resetButton = NSButton(title: "Use Default", target: nil, action: nil)
     private let launchAtLoginSwitch = NSSwitch(frame: .zero)
+    private let captureModePopUp = NSPopUpButton(frame: .zero, pullsDown: false)
     private let statusLabel = NSTextField(labelWithString: "")
 
     init(registeredShortcutProvider: @escaping () -> KeyboardShortcut?) {
@@ -71,11 +72,14 @@ private final class MenuBarSettingsViewController: NSViewController {
 
         let launchAtLoginLabel = makeSettingLabel("Launch at login")
         let shortcutLabel = makeSettingLabel("Scan QR shortcut")
+        let captureModeLabel = makeSettingLabel("Capture mode")
 
         configureControls()
 
         container.addSubview(launchAtLoginLabel)
         container.addSubview(launchAtLoginSwitch)
+        container.addSubview(captureModeLabel)
+        container.addSubview(captureModePopUp)
         container.addSubview(shortcutLabel)
         container.addSubview(shortcutButton)
         container.addSubview(resetButton)
@@ -91,6 +95,12 @@ private final class MenuBarSettingsViewController: NSViewController {
             launchAtLoginSwitch.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
             launchAtLoginSwitch.topAnchor.constraint(equalTo: container.topAnchor, constant: 20),
 
+            captureModeLabel.leadingAnchor.constraint(equalTo: launchAtLoginLabel.leadingAnchor),
+            captureModeLabel.centerYAnchor.constraint(equalTo: captureModePopUp.centerYAnchor),
+            captureModePopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
+            captureModePopUp.topAnchor.constraint(equalTo: launchAtLoginSwitch.bottomAnchor, constant: 20),
+            captureModePopUp.widthAnchor.constraint(equalToConstant: 190),
+
             shortcutLabel.leadingAnchor.constraint(equalTo: launchAtLoginLabel.leadingAnchor),
             shortcutLabel.centerYAnchor.constraint(equalTo: shortcutButton.centerYAnchor),
             shortcutLabel.trailingAnchor.constraint(lessThanOrEqualTo: shortcutButton.leadingAnchor, constant: -16),
@@ -98,7 +108,7 @@ private final class MenuBarSettingsViewController: NSViewController {
             resetButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
 
             shortcutButton.trailingAnchor.constraint(equalTo: resetButton.leadingAnchor, constant: -10),
-            shortcutButton.topAnchor.constraint(equalTo: launchAtLoginSwitch.bottomAnchor, constant: 24),
+            shortcutButton.topAnchor.constraint(equalTo: captureModePopUp.bottomAnchor, constant: 24),
             shortcutButton.widthAnchor.constraint(equalToConstant: 150),
             resetButton.centerYAnchor.constraint(equalTo: shortcutButton.centerYAnchor),
 
@@ -127,6 +137,22 @@ private final class MenuBarSettingsViewController: NSViewController {
             name: MenuBarSettingsStore.scanShortcutDidChange,
             object: nil
         )
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        refreshCaptureMode()
+    }
+
+    @objc private func changeCaptureMode() {
+        guard let value = captureModePopUp.selectedItem?.representedObject as? String,
+              let mode = CaptureMode(rawValue: value) else { return }
+        MenuBarSettingsStore.captureMode = mode
+    }
+
+    private func refreshCaptureMode() {
+        let value = MenuBarSettingsStore.captureMode.rawValue
+        captureModePopUp.select(captureModePopUp.itemArray.first { $0.representedObject as? String == value })
     }
 
     @objc private func resetShortcut() {
@@ -185,6 +211,17 @@ private final class MenuBarSettingsViewController: NSViewController {
         launchAtLoginSwitch.action = #selector(toggleLaunchAtLogin)
         launchAtLoginSwitch.setAccessibilityLabel("Launch at login")
         launchAtLoginSwitch.setAccessibilityHelp("Starts QRGo automatically when you log in.")
+
+        captureModePopUp.translatesAutoresizingMaskIntoConstraints = false
+        captureModePopUp.addItem(withTitle: "Drag selection")
+        captureModePopUp.lastItem?.representedObject = CaptureMode.drag.rawValue
+        captureModePopUp.addItem(withTitle: "Click selection")
+        captureModePopUp.lastItem?.representedObject = CaptureMode.click.rawValue
+        captureModePopUp.target = self
+        captureModePopUp.action = #selector(changeCaptureMode)
+        captureModePopUp.setAccessibilityLabel("Capture mode")
+        captureModePopUp.setAccessibilityHelp("Choose drag selection or a fixed square for menu bar scans.")
+        refreshCaptureMode()
 
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)

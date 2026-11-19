@@ -4,6 +4,15 @@ enum MenuBarSettingsStore {
     static let scanShortcutDidChange = Notification.Name("MenuBarSettingsStore.scanShortcutDidChange")
     static let defaultsDomain = "com.block.qrgo"
 
+    static var captureMode: CaptureMode {
+        get {
+            guard let value = userDefaults.string(forKey: captureModeKey),
+                  let mode = CaptureMode(rawValue: value) else { return .drag }
+            return mode
+        }
+        set { userDefaults.set(newValue.rawValue, forKey: captureModeKey) }
+    }
+
     /// Only an explicit Default Device choice enables automatic routing.
     static var preferredDeviceKey: String? {
         get { userDefaults.string(forKey: preferredDeviceKeyName) }
@@ -89,6 +98,7 @@ enum MenuBarSettingsStore {
 
     private static let launchAtLoginKey = "menuBar.launchAtLogin"
     private static let scanShortcutKey = "menuBar.scanShortcut"
+    private static let captureModeKey = "menuBar.captureMode"
     private static let preferredDeviceKeyName = "menuBar.preferredDevice"
     private static let legacyMigratedKeys = [
         launchAtLoginKey,
