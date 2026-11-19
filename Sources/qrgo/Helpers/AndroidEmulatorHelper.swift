@@ -1,13 +1,30 @@
 import Foundation
 
 struct AndroidDeviceDiscovery {
-    let devices: [String]
+    let devices: [AndroidDeviceConnection]
     let toolingWarning: String?
+}
+
+struct AndroidDeviceConnection: Equatable {
+    let id: String
+    let transportID: UInt64?
+
+    var adbArguments: [String] {
+        if let transportID = transportID {
+            return ["-t", String(transportID)]
+        }
+        return ["-s", id]
+    }
+}
+
+struct AndroidDeviceDetails {
+    let displayName: String
+    let preferenceKey: String?
 }
 
 class AndroidEmulatorHelper {
     static func findAdbPath() -> String? {
-        if let cachedAdbPath = _cachedAdbPath {
+        if let cachedAdbPath = adbPathLock.withLock({ _cachedAdbPath }) {
             return cachedAdbPath
         }
 
@@ -17,12 +34,12 @@ class AndroidEmulatorHelper {
         }
 
         QRGoLogger.menuBarInfo("Resolved ADB path: \(adbPath)")
-        _cachedAdbPath = adbPath
+        adbPathLock.withLock { _cachedAdbPath = adbPath }
         return adbPath
     }
 
     static func getRunningDevices() -> [String] {
-        return getRunningDeviceDiscovery().devices
+        return getRunningDeviceDiscovery().devices.map(\.id)
     }
 
     static func getRunningDeviceDiscovery() -> AndroidDeviceDiscovery {
@@ -34,41 +51,50 @@ class AndroidEmulatorHelper {
             )
         }
 
-        let result = Shell.runCommand(adbPath, arguments: ["devices"], mergeStderr: true)
+        let result = Shell.runCommand(adbPath, arguments: ["devices", "-l"], mergeStderr: true)
         guard result.succeeded else {
             logEmptyAdbDevicesResult(result)
             return AndroidDeviceDiscovery(devices: [], toolingWarning: nil)
         }
 
-        let devices = parseRunningDeviceIds(fromAdbDevicesOutput: result.stdout)
+        let devices = parseRunningDevices(fromAdbDevicesOutput: result.stdout)
         if devices.isEmpty {
             logEmptyAdbDevicesResult(result)
         }
         return AndroidDeviceDiscovery(devices: devices, toolingWarning: nil)
     }
 
-    static func parseRunningDeviceIds(fromAdbDevicesOutput output: String) -> [String] {
+    static func parseRunningDevices(fromAdbDevicesOutput output: String) -> [AndroidDeviceConnection] {
         return output.components(separatedBy: .newlines).compactMap { line in
-            let components = line.split { character in
-                character == " " || character == "\t"
-            }
-            return components.count >= 2 && components[1] == "device" ? String(components[0]) : nil
+            let components = line.split(whereSeparator: \.isWhitespace)
+            guard components.count >= 2, components[1] == "device" else { return nil }
+            let prefix = "transport_id:"
+            let transportID = components.dropFirst(2).first { $0.hasPrefix(prefix) }
+                .flatMap { UInt64($0.dropFirst(prefix.count)) }
+            return AndroidDeviceConnection(id: String(components[0]), transportID: transportID)
         }
     }
 
-    static func getDeviceFriendlyName(_ deviceId: String) -> String {
-        guard let adbPath = findAdbPath() else {
-            return "Android Device (\(deviceId))"
-        }
+    static func getDeviceFriendlyName(_ deviceId: String, transportID: UInt64? = nil) -> String {
+        getDeviceDetails(for: AndroidDeviceConnection(id: deviceId, transportID: transportID)).displayName
+    }
 
-        let props = getDeviceProperties(deviceId: deviceId, adbPath: adbPath)
+    static func getDeviceDetails(for device: AndroidDeviceConnection) -> AndroidDeviceDetails {
+        let properties = findAdbPath().map { getDeviceProperties(for: device, adbPath: $0) } ?? [:]
+        return deviceDetails(for: device, properties: properties)
+    }
+
+    static func deviceDetails(for device: AndroidDeviceConnection, properties props: [String: String])
+        -> AndroidDeviceDetails {
+        let deviceId = device.id
         let model = props["ro.product.model"] ?? ""
         let manufacturer = props["ro.product.manufacturer"] ?? ""
         let apiLevel = props["ro.build.version.sdk"] ?? ""
         let isQemu = props["ro.kernel.qemu"] ?? ""
         let avdName = props["ro.boot.qemu.avd_name"] ?? ""
 
-        let isEmulator = isQemu == "1" || deviceId.contains("emulator-")
+        let isEmulator = isQemu == "1" || props["ro.boot.qemu"] == "1" ||
+            !avdName.isEmpty || deviceId.hasPrefix("emulator-")
 
         var displayName = ""
 
@@ -78,11 +104,8 @@ class AndroidEmulatorHelper {
                     .replacingOccurrences(of: "API", with: "API ")
                 displayName = "\(cleanedAvdName) (Emulator)"
             } else if !model.isEmpty {
-                if !apiLevel.isEmpty {
-                    displayName = "\(model) API \(apiLevel) (Emulator)"
-                } else {
-                    displayName = "\(model) (Emulator)"
-                }
+                let modelAndAPI = apiLevel.isEmpty ? model : "\(model) API \(apiLevel)"
+                displayName = "\(modelAndAPI) (Emulator)"
             } else {
                 displayName = "Android Emulator (\(deviceId))"
             }
@@ -102,11 +125,20 @@ class AndroidEmulatorHelper {
             }
         }
 
-        return displayName
+        let preferenceKey: String?
+        if isEmulator {
+            // ADB reuses emulator ports. Bind delivery to the current transport and save the AVD name.
+            preferenceKey = avdName.isEmpty || device.transportID == nil ? nil : "android-avd:\(avdName)"
+        } else {
+            preferenceKey = props.isEmpty ? nil : "android:\(deviceId)"
+        }
+        return AndroidDeviceDetails(displayName: displayName, preferenceKey: preferenceKey)
     }
 
     @discardableResult
-    static func openUrl(_ urlString: String, deviceId: String? = nil, validated: Bool = false) -> Bool {
+    static func openUrl(
+        _ urlString: String, deviceId: String? = nil, validated: Bool = false, transportID: UInt64? = nil
+    ) -> Bool {
         guard let adbPath = findAdbPath() else {
             printError("ADB not found. Please install Android SDK or ensure ADB is in your PATH.")
             return false
@@ -143,12 +175,13 @@ class AndroidEmulatorHelper {
             "-c android.intent.category.BROWSABLE",
             "-d '\(safeUrlString)'"
         ].joined(separator: " ")
+        let connection = AndroidDeviceConnection(id: targetDevice, transportID: transportID)
         let result = Shell.runCommand(
             adbPath,
-            arguments: ["-s", targetDevice, "shell", shellCommand],
+            arguments: connection.adbArguments + ["shell", shellCommand],
             mergeStderr: true
         )
-        let deviceName = getDeviceFriendlyName(targetDevice)
+        let deviceName = getDeviceDetails(for: connection).displayName
 
         if !result.succeeded || result.stdout.contains("Error:") {
             if result.stdout.contains("unable to resolve Intent") {
@@ -166,6 +199,7 @@ class AndroidEmulatorHelper {
         }
     }
 
+    private static let adbPathLock = NSLock()
     private static var _cachedAdbPath: String?
 
     private static func resolveAdbPath() -> String? {
@@ -233,17 +267,20 @@ class AndroidEmulatorHelper {
             .path
     }
 
-    private static func getDeviceProperties(deviceId: String, adbPath: String) -> [String: String] {
+    private static func getDeviceProperties(for device: AndroidDeviceConnection, adbPath: String) -> [String: String] {
         let properties = [
             "ro.product.model",
             "ro.product.manufacturer",
             "ro.build.version.sdk",
             "ro.kernel.qemu",
+            "ro.boot.qemu",
             "ro.boot.qemu.avd_name"
         ]
 
         let shellCommand = properties.map { "getprop \($0)" }.joined(separator: " && echo '|||' && ")
-        let result = Shell.runCommand(adbPath, arguments: ["-s", deviceId, "shell", shellCommand], suppressStderr: true)
+        let result = Shell.runCommand(
+            adbPath, arguments: device.adbArguments + ["shell", shellCommand], suppressStderr: true
+        )
         guard result.succeeded else { return [:] }
 
         var props: [String: String] = [:]

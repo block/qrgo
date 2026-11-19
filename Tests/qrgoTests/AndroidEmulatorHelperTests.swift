@@ -10,7 +10,7 @@ final class AndroidEmulatorHelperTests: XCTestCase {
         """
 
         XCTAssertEqual(
-            AndroidEmulatorHelper.parseRunningDeviceIds(fromAdbDevicesOutput: output),
+            AndroidEmulatorHelper.parseRunningDevices(fromAdbDevicesOutput: output).map(\.id),
             ["emulator-5560"]
         )
     }
@@ -24,7 +24,7 @@ final class AndroidEmulatorHelperTests: XCTestCase {
         """
 
         XCTAssertEqual(
-            AndroidEmulatorHelper.parseRunningDeviceIds(fromAdbDevicesOutput: output),
+            AndroidEmulatorHelper.parseRunningDevices(fromAdbDevicesOutput: output).map(\.id),
             ["emulator-5554", "192.168.1.100:5555"]
         )
     }
@@ -39,7 +39,7 @@ final class AndroidEmulatorHelperTests: XCTestCase {
         """
 
         XCTAssertEqual(
-            AndroidEmulatorHelper.parseRunningDeviceIds(fromAdbDevicesOutput: output),
+            AndroidEmulatorHelper.parseRunningDevices(fromAdbDevicesOutput: output).map(\.id),
             ["emulator-5554"]
         )
     }
@@ -54,8 +54,16 @@ final class AndroidEmulatorHelperTests: XCTestCase {
         """
 
         XCTAssertEqual(
-            AndroidEmulatorHelper.parseRunningDeviceIds(fromAdbDevicesOutput: output),
+            AndroidEmulatorHelper.parseRunningDevices(fromAdbDevicesOutput: output).map(\.id),
             ["emulator-5558"]
         )
+    }
+
+    func testParseRunningDevicesCapturesTransportID() {
+        let output = "emulator-5554 device product:sdk model:Pixel transport_id:7"
+        let devices = AndroidEmulatorHelper.parseRunningDevices(fromAdbDevicesOutput: output)
+
+        XCTAssertEqual(devices, [AndroidDeviceConnection(id: "emulator-5554", transportID: 7)])
+        XCTAssertEqual(devices.first?.adbArguments, ["-t", "7"])
     }
 }
