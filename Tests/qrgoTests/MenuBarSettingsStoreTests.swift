@@ -68,6 +68,24 @@ final class MenuBarSettingsStoreTests: XCTestCase {
         XCTAssertEqual(MenuBarSettingsStore.captureMode, .click)
     }
 
+    func testPreferredDeviceDefaultsToNone() {
+        XCTAssertNil(MenuBarSettingsStore.preferredDeviceKey)
+    }
+
+    func testPreferredDevicePersistsAcrossDefaultsInstances() throws {
+        MenuBarSettingsStore.preferredDeviceKey = "android-avd:Pixel_8"
+        MenuBarSettingsStore.userDefaults = try XCTUnwrap(UserDefaults(suiteName: XCTUnwrap(suiteName)))
+
+        XCTAssertEqual(MenuBarSettingsStore.preferredDeviceKey, "android-avd:Pixel_8")
+    }
+
+    func testPreferredDeviceCanBeCleared() {
+        MenuBarSettingsStore.preferredDeviceKey = "ios:simulator-id"
+        MenuBarSettingsStore.preferredDeviceKey = nil
+
+        XCTAssertNil(MenuBarSettingsStore.preferredDeviceKey)
+    }
+
     func testLaunchAtLoginPreferencePersistsEnabledState() {
         MenuBarSettingsStore.launchAtLoginPreference = true
 

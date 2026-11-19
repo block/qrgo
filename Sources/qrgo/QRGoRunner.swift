@@ -19,7 +19,7 @@ enum DeviceType {
 
 enum TargetAction: Equatable, Sendable {
     case ios(udid: String)
-    case android(deviceId: String)
+    case android(deviceId: String, transportID: UInt64? = nil)
     case copy
     case local
     case skip
@@ -28,7 +28,7 @@ enum TargetAction: Equatable, Sendable {
         switch self {
         case .ios(let udid):
             return "ios:\(udid)"
-        case .android(let deviceId):
+        case .android(let deviceId, _):
             return "android:\(deviceId)"
         case .copy:
             return "copy"
@@ -40,13 +40,14 @@ enum TargetAction: Equatable, Sendable {
     }
 }
 
-struct TargetOption: Sendable {
+struct TargetOption: Equatable, Sendable {
     let displayName: String
     let systemSymbolName: String
     let action: TargetAction
+    var androidPreferenceKey: String?
 }
 
-struct AvailableTargetOptions: Sendable {
+struct AvailableTargetOptions: Equatable, Sendable {
     let options: [TargetOption]
     let footerWarning: String?
 }
@@ -340,8 +341,8 @@ struct QRGoRunner {
             } else {
                 notifier.error("Failed to open URL on iOS Simulator.")
             }
-        case .android(let deviceId):
-            let deviceName = AndroidEmulatorHelper.getDeviceFriendlyName(deviceId)
+        case .android(let deviceId, let transportID):
+            let deviceName = AndroidEmulatorHelper.getDeviceFriendlyName(deviceId, transportID: transportID)
             if opened {
                 notifier.success("Opened URL on \(deviceName).")
             } else {
@@ -522,11 +523,12 @@ func makeAvailableTargetOptions(includesCopyOption: Bool) -> AvailableTargetOpti
 
     let androidDiscovery = AndroidEmulatorHelper.getRunningDeviceDiscovery()
     for device in androidDiscovery.devices {
-        let friendlyName = AndroidEmulatorHelper.getDeviceFriendlyName(device)
+        let details = AndroidEmulatorHelper.getDeviceDetails(for: device)
         availableOptions.append(TargetOption(
-            displayName: friendlyName,
+            displayName: details.displayName,
             systemSymbolName: "candybarphone",
-            action: .android(deviceId: device)
+            action: .android(deviceId: device.id, transportID: device.transportID),
+            androidPreferenceKey: details.preferenceKey
         ))
     }
 
@@ -554,8 +556,8 @@ func openUrl(_ urlString: String, action: TargetAction) -> Bool {
     switch action {
     case .ios(let udid):
         return SimulatorHelper.openUrl(urlString, udid: udid)
-    case .android(let deviceId):
-        return AndroidEmulatorHelper.openUrl(urlString, deviceId: deviceId)
+    case .android(let deviceId, let transportID):
+        return AndroidEmulatorHelper.openUrl(urlString, deviceId: deviceId, validated: true, transportID: transportID)
     case .copy:
         return copyUrlToClipboard(urlString)
     case .local:
