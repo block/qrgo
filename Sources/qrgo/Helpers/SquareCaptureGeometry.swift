@@ -1,6 +1,11 @@
 import Foundation
 
 enum SquareCaptureGeometry {
+    static func containsMouseLocation(_ location: CGPoint, in screenFrame: CGRect) -> Bool {
+        // AppKit's unflipped mouse coordinates include a display's top edge.
+        NSMouseInRect(location, screenFrame, false)
+    }
+
     /// Logical points keep the outline and capture region aligned on Retina displays.
     static func selectionRect(center: CGPoint, screenFrame: CGRect) -> CGRect {
         let side = min(max(1, floor(screenFrame.width * sqrt(2) / 10)), screenFrame.width, screenFrame.height)

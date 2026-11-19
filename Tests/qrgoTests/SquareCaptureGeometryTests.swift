@@ -5,6 +5,16 @@ import Testing
 struct SquareCaptureGeometryTests {
     private let primary = CGRect(x: 0, y: 0, width: 1440, height: 900)
 
+    @Test func `mouse hit test includes the top edge of each display`() {
+        let upperDisplay = primary.offsetBy(dx: 0, dy: primary.height)
+        let sharedEdge = CGPoint(x: 720, y: primary.maxY)
+        let topEdge = CGPoint(x: 720, y: upperDisplay.maxY)
+
+        #expect(SquareCaptureGeometry.containsMouseLocation(sharedEdge, in: primary))
+        #expect(!SquareCaptureGeometry.containsMouseLocation(sharedEdge, in: upperDisplay))
+        #expect(SquareCaptureGeometry.containsMouseLocation(topEdge, in: upperDisplay))
+    }
+
     @Test func `square stays centered with twice the original capture area`() {
         #expect(SquareCaptureGeometry.selectionRect(center: CGPoint(x: 720, y: 450), screenFrame: primary)
             == CGRect(x: 618, y: 348, width: 203, height: 203))

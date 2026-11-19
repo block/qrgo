@@ -1,7 +1,6 @@
 import Foundation
 
 class ScreenCaptureHelper {
-    @MainActor
     static func captureSelection(mode: CaptureMode = .drag) throws -> String? {
         let arguments: [String]
         switch mode {

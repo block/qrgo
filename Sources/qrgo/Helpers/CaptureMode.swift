@@ -35,7 +35,7 @@ enum CaptureMode: String, Equatable {
             index += 1
         }
         if selection != nil && arguments.contains(where: {
-            ["--menu-bar", "--menu-bar-agent", "--open-last"].contains($0)
+            [MenuBarLaunchHelper.launchArgument, MenuBarLaunchHelper.agentArgument, "--open-last"].contains($0)
         }) {
             throw ArgumentError.requiresCLIScan
         }

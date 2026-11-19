@@ -211,7 +211,11 @@ struct QRGoRunner {
         }
 
         do {
-            guard let imagePath = try ScreenCaptureHelper.captureSelection(mode: configuration.captureMode) else {
+            let captureMode = configuration.captureMode
+            let capturedImagePath = try await Task.detached(priority: .userInitiated) {
+                try ScreenCaptureHelper.captureSelection(mode: captureMode)
+            }.value
+            guard let imagePath = capturedImagePath else {
                 notifier.info("Screen capture canceled.")
                 return true
             }

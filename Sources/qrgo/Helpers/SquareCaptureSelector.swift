@@ -26,7 +26,10 @@ final class SquareCaptureSelector: NSObject {
         for panel in panels {
             panel.orderFrontRegardless()
         }
-        let initialPanel = panels.first { $0.frame.contains(NSEvent.mouseLocation) } ?? panels[0]
+        let mouseLocation = NSEvent.mouseLocation
+        let initialPanel = panels.first {
+            SquareCaptureGeometry.containsMouseLocation(mouseLocation, in: $0.frame)
+        } ?? panels[0]
         initialPanel.makeKeyAndOrderFront(nil)
         app.activate(ignoringOtherApps: true)
         updateSelection()
@@ -125,7 +128,7 @@ final class SquareCaptureSelector: NSObject {
         selectedRect = nil
         for panel in panels {
             guard let view = panel.contentView as? SquareCaptureView else { continue }
-            if panel.frame.contains(location) {
+            if SquareCaptureGeometry.containsMouseLocation(location, in: panel.frame) {
                 let rect = SquareCaptureGeometry.selectionRect(center: location, screenFrame: panel.frame)
                 selectedRect = rect
                 view.selectionRect = rect.offsetBy(dx: -panel.frame.minX, dy: -panel.frame.minY)
@@ -160,7 +163,12 @@ final class SquareCapturePanel: NSPanel {
 @MainActor
 final class SquareCaptureView: NSView {
     var selectionRect: CGRect? {
-        didSet { needsDisplay = true }
+        didSet {
+            guard oldValue != selectionRect else { return }
+            for rect in [oldValue, selectionRect].compactMap({ $0 }) {
+                setNeedsDisplay(rect.insetBy(dx: -1, dy: -1))
+            }
+        }
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
